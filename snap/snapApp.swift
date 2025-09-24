@@ -9,6 +9,7 @@ import SwiftUI
 import CoreGraphics
 import ApplicationServices
 import Combine
+import AppKit
 
 @main
 struct SnapApp: App {
@@ -31,22 +32,42 @@ class LayoutManager: ObservableObject {
     }
 
     func saveLayout() {
-        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return }
+        // Request screen recording permission if not granted
+        if !CGPreflightScreenCaptureAccess() {
+            CGRequestScreenCaptureAccess()
+            // Wait a bit for the user to grant
+            sleep(2)
+        }
+
+        let options: CGWindowListOption = .optionOnScreenOnly // Only on-screen windows
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return
+        }
 
         var layoutData: [[String: Any]] = []
+
+        // System processes that shouldn't be included in layouts
+        let systemProcesses = ["Window Server", "Dock", "Finder", "SystemUIServer", "loginwindow"]
+        // Also exclude the Snap app itself since it's a menu bar app with no accessible windows
+        let excludedApps = systemProcesses + ["snap"]
+
         for window in windowList {
             if let bounds = window[kCGWindowBounds as String] as? NSDictionary,
                let ownerName = window[kCGWindowOwnerName as String] as? String,
                let name = window[kCGWindowName as String] as? String,
                let windowID = window[kCGWindowNumber as String] as? NSNumber {
-                let layout: [String: Any] = [
-                    "owner": ownerName,
-                    "name": name,
-                    "bounds": bounds,
-                    "id": windowID.intValue
-                ]
-                layoutData.append(layout)
+
+                // Skip system processes and the app itself
+                let obviousSystem = ["Window Server", "Dock", "snap"]
+                if !obviousSystem.contains(ownerName) {
+                    let layout: [String: Any] = [
+                        "owner": ownerName,
+                        "name": name,
+                        "bounds": bounds,
+                        "id": windowID.intValue
+                    ]
+                    layoutData.append(layout)
+                }
             }
         }
 
@@ -73,51 +94,85 @@ class LayoutManager: ObservableObject {
     }
 
     func loadLayout(name: String) {
-        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        if !AXIsProcessTrustedWithOptions(options) {
+        if !AXIsProcessTrusted() {
+            let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+            if !AXIsProcessTrustedWithOptions(options) {
+                return
+            }
+        }
+
+        guard let layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary],
+              let layoutDict = layouts[name],
+              let data = layoutDict["data"] as? Data,
+              let savedLayouts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return
         }
 
-        guard let layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: Data],
-              let data = layouts[name],
-              let savedLayouts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+        // Filter out system processes and excluded apps when loading (for backward compatibility)
+        let systemProcesses = ["Window Server", "Dock", "Finder", "SystemUIServer", "loginwindow"]
+        let excludedApps = systemProcesses + ["snap"] // Exclude Snap app since it's a menu bar app
+        let filteredLayouts = savedLayouts.filter { saved in
+            if let owner = saved["owner"] as? String {
+                return !excludedApps.contains(owner)
+            }
+            return false
+        }
 
-        let system = AXUIElementCreateSystemWide()
-        var value: CFTypeRef?
-        AXUIElementCopyAttributeValue(system, kAXWindowsAttribute as CFString, &value)
+        // Use Accessibility API for window manipulation - more reliable than AppleScript
+        for saved in filteredLayouts {
+            if let savedOwner = saved["owner"] as? String,
+               let savedName = saved["name"] as? String,
+               let bounds = saved["bounds"] as? [String: Any],
+               let x = bounds["X"] as? Double,
+               let y = bounds["Y"] as? Double,
+               let width = bounds["Width"] as? Double,
+               let height = bounds["Height"] as? Double {
 
-        guard let windows = value as? [AXUIElement] else { return }
+                // Find the running application
+                let apps = NSWorkspace.shared.runningApplications
+                guard let app = apps.first(where: { $0.localizedName == savedOwner }) else {
+                    continue
+                }
 
-        for window in windows {
-            var appElement: CFTypeRef?
-            AXUIElementCopyAttributeValue(window, kAXParentAttribute as CFString, &appElement)
-            guard let app = appElement else { continue }
+                let pid = app.processIdentifier
+                let appElement = AXUIElementCreateApplication(pid)
 
-            var appName: CFTypeRef?
-            AXUIElementCopyAttributeValue(app as! AXUIElement, kAXTitleAttribute as CFString, &appName)
+                // Get the windows
+                var value: CFTypeRef?
+                let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value)
+                guard result == AXError.success else {
+                    continue
+                }
+                let windows = value as! CFArray
 
-            var windowName: CFTypeRef?
-            AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &windowName)
+                // Find the window with matching name
+                for i in 0..<CFArrayGetCount(windows) {
+                    let window = CFArrayGetValueAtIndex(windows, i)
+                    let windowElement = unsafeBitCast(window, to: AXUIElement.self)
 
-            guard let ownerName = appName as? String,
-                  let nameStr = windowName as? String else { continue }
+                    var title: CFTypeRef?
+                    AXUIElementCopyAttributeValue(windowElement, kAXTitleAttribute as CFString, &title)
+                    let windowTitle = title as? String ?? ""
 
-            for saved in savedLayouts {
-                if let savedOwner = saved["owner"] as? String,
-                   let savedName = saved["name"] as? String,
-                   savedOwner == ownerName,
-                   savedName == nameStr,
-                   let bounds = saved["bounds"] as? [String: Any],
-                   let x = bounds["X"] as? Double,
-                   let y = bounds["Y"] as? Double,
-                   let width = bounds["Width"] as? Double,
-                   let height = bounds["Height"] as? Double {
+                    if windowTitle == savedName || (savedName.isEmpty && windowTitle.isEmpty) {
+                        // Set position
+                        var position = CGPoint(x: x, y: y)
+                        let posValue = AXValueCreate(.cgPoint, &position)
+                        let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
+                        if posResult != AXError.success {
+                            continue
+                        }
 
-                    let position = CGPoint(x: x, y: y)
-                    let size = CGSize(width: width, height: height)
+                        // Set size
+                        var size = CGSize(width: width, height: height)
+                        let sizeValue = AXValueCreate(.cgSize, &size)
+                        let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
+                        if sizeResult != AXError.success {
+                            continue
+                        }
 
-                    AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, position as CFTypeRef)
-                    AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size as CFTypeRef)
+                        break
+                    }
                 }
             }
         }

@@ -6,27 +6,24 @@
 //
 
 import SwiftUI
-import SwiftData
 
 @main
-struct snapApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
+struct SnapApp: App {
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        MenuBarExtra("Snap", systemImage: "window") {
+            Button("Save Layout") {
+                // TODO: implement save layout
+            }
+            
+            Divider()
+            
+            Button("Settings") {
+                // TODO: open settings window
+            }
+            
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
         }
-        .modelContainer(sharedModelContainer)
     }
 }

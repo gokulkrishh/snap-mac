@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+import CoreGraphics
+import ApplicationServices
+import Combine
 
 @main
 struct SnapApp: App {
@@ -16,44 +19,22 @@ struct SnapApp: App {
     }
 }
 
-struct MenuBarContent: View {
-    @AppStorage("layoutDummy") private var dummy = 0
+class LayoutManager: ObservableObject {
+    @Published var layouts: [String: NSDictionary] = [:]
 
-    var body: some View {
-        Button("Save Layout") {
-            saveLayout()
-            dummy += 1
-        }
+    init() {
+        loadLayouts()
+    }
 
-        let layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: Data] ?? [:]
-        Menu("Saved Layouts") {
-            if layouts.isEmpty {
-                Text("No saved layouts")
-            } else {
-                ForEach(layouts.keys.sorted(), id: \.self) { name in
-                    Button(name) {
-                        loadLayout(name: name)
-                    }
-                }
-            }
-        }
-
-        Divider()
-
-        Button("Settings") {
-            // TODO: open settings window
-        }
-
-        Button("Quit") {
-            NSApplication.shared.terminate(nil)
-        }
+    private func loadLayouts() {
+        self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
     }
 
     func saveLayout() {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return }
 
-        var layouts: [[String: Any]] = []
+        var layoutData: [[String: Any]] = []
         for window in windowList {
             if let bounds = window[kCGWindowBounds as String] as? NSDictionary,
                let ownerName = window[kCGWindowOwnerName as String] as? String,
@@ -65,15 +46,29 @@ struct MenuBarContent: View {
                     "bounds": bounds,
                     "id": windowID.intValue
                 ]
-                layouts.append(layout)
+                layoutData.append(layout)
             }
         }
 
-        var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: Data] ?? [:]
+        var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
         let name = "Layout \(savedLayouts.count + 1)"
-        if let data = try? JSONSerialization.data(withJSONObject: layouts) {
-            savedLayouts[name] = data
+        if let data = try? JSONSerialization.data(withJSONObject: layoutData) {
+            let layoutDict: NSDictionary = ["data": data, "date": Date()]
+            savedLayouts[name] = layoutDict
             UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            self.layouts = savedLayouts
+        }
+    }
+
+    func toggleFavorite(name: String) {
+        if var dict = layouts[name] as? [String: Any] {
+            let currentFav = dict["favorite"] as? Bool ?? false
+            dict["favorite"] = !currentFav
+            let newDict = NSDictionary(dictionary: dict)
+            var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+            savedLayouts[name] = newDict
+            UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            self.layouts = savedLayouts
         }
     }
 
@@ -125,6 +120,59 @@ struct MenuBarContent: View {
                     AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size as CFTypeRef)
                 }
             }
+        }
+    }
+}
+
+struct MenuBarContent: View {
+    @StateObject private var manager = LayoutManager()
+
+    var body: some View {
+        let favorites = manager.layouts.filter { ($0.value["favorite"] as? Bool) == true }.sorted { ($0.value["date"] as? Date ?? Date.distantPast) > ($1.value["date"] as? Date ?? Date.distantPast) }
+        let nonFavorites = manager.layouts.filter { ($0.value["favorite"] as? Bool) != true }.sorted { ($0.value["date"] as? Date ?? Date.distantPast) > ($1.value["date"] as? Date ?? Date.distantPast) }
+
+        if !favorites.isEmpty {
+            Button("Favourites", action: {}).disabled(true)
+            ForEach(favorites, id: \.key) { name, _ in
+                Menu(name) {
+                    Button("Load Layout") {
+                        manager.loadLayout(name: name)
+                    }
+                    Button("Remove from Favourites") {
+                        manager.toggleFavorite(name: name)
+                    }
+                }
+            }
+            Divider()
+        }
+
+        Button("Save Layout") {
+            manager.saveLayout()
+        }
+
+        if !nonFavorites.isEmpty {
+            Menu("Saved Layouts") {
+                ForEach(nonFavorites, id: \.key) { name, dict in
+                    Menu(name) {
+                        Button("Load Layout") {
+                            manager.loadLayout(name: name)
+                        }
+                        Button("Add to Favorites") {
+                            manager.toggleFavorite(name: name)
+                        }
+                    }
+                }
+            }
+        }
+
+        Divider()
+
+        Button("Settings") {
+            // TODO: open settings window
+        }
+
+        Button("Quit") {
+            NSApplication.shared.terminate(nil)
         }
     }
 }

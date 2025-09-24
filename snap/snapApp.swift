@@ -122,6 +122,13 @@ class LayoutManager: ObservableObject {
             }
         }
     }
+
+    func deleteLayout(name: String) {
+        var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+        savedLayouts.removeValue(forKey: name)
+        UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+        self.layouts = savedLayouts
+    }
 }
 
 struct MenuBarContent: View {
@@ -129,20 +136,26 @@ struct MenuBarContent: View {
 
     var body: some View {
         let favorites = manager.layouts.filter { ($0.value["favorite"] as? Bool) == true }.sorted { ($0.value["date"] as? Date ?? Date.distantPast) > ($1.value["date"] as? Date ?? Date.distantPast) }
-        let nonFavorites = manager.layouts.filter { ($0.value["favorite"] as? Bool) != true }.sorted { ($0.value["date"] as? Date ?? Date.distantPast) > ($1.value["date"] as? Date ?? Date.distantPast) }
 
         if !favorites.isEmpty {
             Button("Favourites", action: {}).disabled(true)
-            ForEach(favorites, id: \.key) { name, _ in
-                Menu(name) {
-                    Button("Load Layout") {
-                        manager.loadLayout(name: name)
-                    }
-                    Button("Remove from Favourites") {
-                        manager.toggleFavorite(name: name)
-                    }
+        }
+        ForEach(favorites, id: \.key) { name, _ in
+            Menu(name) {
+                Button("Load Layout") {
+                    manager.loadLayout(name: name)
+                }
+                Button("Remove from Favourites") {
+                    manager.toggleFavorite(name: name)
+                }
+                Divider()
+                Button("Delete Layout") {
+                    manager.deleteLayout(name: name)
                 }
             }
+        }
+
+        if !favorites.isEmpty {
             Divider()
         }
 
@@ -150,15 +163,30 @@ struct MenuBarContent: View {
             manager.saveLayout()
         }
 
-        if !nonFavorites.isEmpty {
-            Menu("Saved Layouts") {
-                ForEach(nonFavorites, id: \.key) { name, dict in
+        let allLayouts = manager.layouts.sorted {
+            let fav1 = $0.value["favorite"] as? Bool ?? false
+            let fav2 = $1.value["favorite"] as? Bool ?? false
+            if fav1 != fav2 { return fav1 && !fav2 }
+            let date1 = $0.value["date"] as? Date ?? Date.distantPast
+            let date2 = $1.value["date"] as? Date ?? Date.distantPast
+            return date1 > date2
+        }
+        Menu("Saved Layouts") {
+            if allLayouts.isEmpty {
+                Text("No saved layouts")
+            } else {
+                ForEach(allLayouts, id: \.key) { name, dict in
+                    let favorite = dict["favorite"] as? Bool ?? false
                     Menu(name) {
                         Button("Load Layout") {
                             manager.loadLayout(name: name)
                         }
-                        Button("Add to Favorites") {
+                        Button(favorite ? "Remove from Favourites" : "Add to Favourites") {
                             manager.toggleFavorite(name: name)
+                        }
+                        Divider()
+                        Button("Delete Layout") {
+                            manager.deleteLayout(name: name)
                         }
                     }
                 }

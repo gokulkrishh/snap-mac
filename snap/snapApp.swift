@@ -62,9 +62,11 @@ class LayoutManager: ObservableObject {
 
                 // Skip system processes and the app itself
                 let obviousSystem = ["Window Server", "Dock", "snap"]
-                if !obviousSystem.contains(ownerName) {
+                if !obviousSystem.contains(ownerName),
+                   let ownerPID = window[kCGWindowOwnerPID as String] as? NSNumber {
                     // Get bundle identifier for reopening if needed
-                    let bundleId = apps.first(where: { $0.localizedName == ownerName })?.bundleIdentifier ?? ""
+                    let app = apps.first(where: { $0.processIdentifier == ownerPID.intValue })
+                    let bundleId = app?.bundleIdentifier ?? ""
                     let layout: [String: Any] = [
                         "owner": ownerName,
                         "name": name,
@@ -144,12 +146,12 @@ class LayoutManager: ObservableObject {
                     do {
                         try NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
                         // Wait a bit for the app to launch
-                        sleep(3)
+                        sleep(5)
                         // Refresh running apps
                         let updatedApps = NSWorkspace.shared.runningApplications
                         app = updatedApps.first(where: { $0.localizedName == savedOwner })
                     } catch {
-                        // Failed to open
+                        // Failed to launch
                     }
                 }
 

@@ -46,10 +46,13 @@ class LayoutManager: ObservableObject {
 
         var layoutData: [[String: Any]] = []
 
+        // Get all running applications for bundle ids
+        let apps = NSWorkspace.shared.runningApplications
+
         // System processes that shouldn't be included in layouts
         let systemProcesses = ["Window Server", "Dock", "Finder", "SystemUIServer", "loginwindow"]
         // Also exclude the Snap app itself since it's a menu bar app with no accessible windows
-        let excludedApps = systemProcesses + ["snap"]
+        _ = systemProcesses + ["snap"]
 
         for window in windowList {
             if let bounds = window[kCGWindowBounds as String] as? NSDictionary,
@@ -60,11 +63,14 @@ class LayoutManager: ObservableObject {
                 // Skip system processes and the app itself
                 let obviousSystem = ["Window Server", "Dock", "snap"]
                 if !obviousSystem.contains(ownerName) {
+                    // Get bundle identifier for reopening if needed
+                    let bundleId = apps.first(where: { $0.localizedName == ownerName })?.bundleIdentifier ?? ""
                     let layout: [String: Any] = [
                         "owner": ownerName,
                         "name": name,
                         "bounds": bounds,
-                        "id": windowID.intValue
+                        "id": windowID.intValue,
+                        "bundleId": bundleId
                     ]
                     layoutData.append(layout)
                 }
@@ -130,7 +136,24 @@ class LayoutManager: ObservableObject {
 
                 // Find the running application
                 let apps = NSWorkspace.shared.runningApplications
-                guard let app = apps.first(where: { $0.localizedName == savedOwner }) else {
+                var app = apps.first(where: { $0.localizedName == savedOwner })
+
+                // If app not running, try to open it
+                if app == nil, let bundleId = saved["bundleId"] as? String, !bundleId.isEmpty,
+                   let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                    do {
+                        try NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                        // Wait a bit for the app to launch
+                        sleep(3)
+                        // Refresh running apps
+                        let updatedApps = NSWorkspace.shared.runningApplications
+                        app = updatedApps.first(where: { $0.localizedName == savedOwner })
+                    } catch {
+                        // Failed to open
+                    }
+                }
+
+                guard let app = app else {
                     continue
                 }
 

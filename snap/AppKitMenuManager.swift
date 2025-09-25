@@ -82,6 +82,7 @@ class AppKitMenuManager: ObservableObject {
         // Save Layout
         let saveItem = NSMenuItem(title: "Save layout", action: #selector(saveLayout), keyEquivalent: "")
         saveItem.target = self
+        saveItem.keyEquivalentModifierMask = []
         menu?.addItem(saveItem)
         
         menu?.addItem(NSMenuItem.separator())
@@ -321,6 +322,8 @@ class AppKitMenuManager: ObservableObject {
             // Refresh menu to show the new layout
             DispatchQueue.main.async {
                 self.refreshMenu()
+                // Keep menu open by reassigning it to statusItem
+                self.statusItem?.menu = self.menu
             }
         }
     }

@@ -18,20 +18,17 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
     @Published var layouts: [String: NSDictionary] = [:]
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
-    private let layoutManager = LayoutManager()
+    private let layoutManager = LayoutManager.shared
     
     // Global hotkey monitoring
     private var registeredShortcuts: [String: (layoutName: String, eventMonitor: Any)] = [:]
     
     override init() {
         super.init()
-        loadLayouts()
         setupMenuBar()
         observeLayoutManager()
-    }
-    
-    private func loadLayouts() {
-        self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+        // Load layouts from the shared LayoutManager
+        self.layouts = layoutManager.layouts
         updateGlobalShortcuts()
     }
     
@@ -138,18 +135,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         
         settingsItem.submenu = settingsMenu
         menu?.addItem(settingsItem)
-        
-        menu?.addItem(NSMenuItem.separator())
-        
-        // Test Global Shortcuts
-        let testItem = NSMenuItem(title: "Test Global Shortcuts", action: #selector(testShortcuts), keyEquivalent: "")
-        testItem.target = self
-        menu?.addItem(testItem)
-        
-        // Check Accessibility Permissions
-        let permissionsItem = NSMenuItem(title: "Check Accessibility Permissions", action: #selector(checkPermissions), keyEquivalent: "")
-        permissionsItem.target = self
-        menu?.addItem(permissionsItem)
         
         menu?.addItem(NSMenuItem.separator())
         
@@ -623,44 +608,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         refreshMenu()
     }
     
-    @objc private func testShortcuts() {
-        testGlobalShortcuts()
-        
-        // Show results in alert
-        let alert = NSAlert()
-        alert.messageText = "Global Shortcuts Test"
-        
-        let hasPermissions = checkAccessibilityPermissions()
-        let shortcutCount = registeredShortcuts.count
-        
-        var message = "Accessibility Permissions: \(hasPermissions ? "✅ Granted" : "❌ Missing")\n"
-        message += "Registered Shortcuts: \(shortcutCount)\n\n"
-        
-        if shortcutCount > 0 {
-            message += "Active shortcuts:\n"
-            for (shortcut, (layoutName, _)) in registeredShortcuts {
-                message += "• \(shortcut) → \(layoutName)\n"
-            }
-        } else {
-            message += "No shortcuts registered. Check accessibility permissions and layout configurations."
-        }
-        
-        alert.informativeText = message
-        alert.addButton(withTitle: "OK")
-        
-        if !hasPermissions {
-            alert.addButton(withTitle: "Open System Preferences")
-        }
-        
-        let response = alert.runModal()
-        if response == .alertSecondButtonReturn {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-        }
-    }
-    
-    @objc private func checkPermissions() {
-        requestAccessibilityPermissions()
-    }
     
     @objc private func quitApp() {
         closeMenu()
@@ -752,33 +699,20 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         }
     }
     
-    func testGlobalShortcuts() {
-        print("🧪 Testing global shortcuts...")
-        print("📊 Accessibility permissions: \(checkAccessibilityPermissions() ? "✅ Granted" : "❌ Missing")")
-        print("📋 Registered shortcuts: \(registeredShortcuts.count)")
-        
-        for (shortcut, (layoutName, _)) in registeredShortcuts {
-            print("   • \(shortcut) -> \(layoutName)")
-        }
-        
-        if registeredShortcuts.isEmpty {
-            print("⚠️ No shortcuts registered. Check accessibility permissions and layout configurations.")
-        }
-    }
     
     private func convertShortcutDictToString(keyCode: Int, modifiers: Int) -> String {
         var parts: [String] = []
         
-        if modifiers & NSEvent.ModifierFlags.command.rawValue != 0 {
+        if modifiers & Int(NSEvent.ModifierFlags.command.rawValue) != 0 {
             parts.append("⌘")
         }
-        if modifiers & NSEvent.ModifierFlags.shift.rawValue != 0 {
+        if modifiers & Int(NSEvent.ModifierFlags.shift.rawValue) != 0 {
             parts.append("⇧")
         }
-        if modifiers & NSEvent.ModifierFlags.option.rawValue != 0 {
+        if modifiers & Int(NSEvent.ModifierFlags.option.rawValue) != 0 {
             parts.append("⌥")
         }
-        if modifiers & NSEvent.ModifierFlags.control.rawValue != 0 {
+        if modifiers & Int(NSEvent.ModifierFlags.control.rawValue) != 0 {
             parts.append("⌃")
         }
         

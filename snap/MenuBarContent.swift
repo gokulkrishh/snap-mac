@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct MenuBarContent: View {
-    @StateObject var manager: LayoutManager
+    @ObservedObject var manager: LayoutManager
 
     private func getShortcutString(for layoutName: String) -> String {
         if let layoutDict = manager.layouts[layoutName],

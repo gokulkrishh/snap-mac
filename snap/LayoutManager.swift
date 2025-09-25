@@ -6,18 +6,18 @@ import AppKit
 
 @MainActor
 class LayoutManager: ObservableObject {
+    static let shared = LayoutManager()
+    
     @Published var layouts: [String: NSDictionary] = [:]
     private let dynamicIconManager = DynamicIconManager.shared
 
-    init() {
+    private init() {
         loadLayouts()
         // Global shortcuts are now handled by AppKitMenuManager to avoid conflicts
     }
 
     private func loadLayouts() {
-        DispatchQueue.main.async {
-            self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
-        }
+        self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
     }
     
     func getSortedLayoutNames() -> [String] {
@@ -131,6 +131,7 @@ class LayoutManager: ObservableObject {
         }
         
         UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+        UserDefaults.standard.synchronize()
         DispatchQueue.main.async {
             self.layouts = savedLayouts
             self.dynamicIconManager.completeWindowOperation()
@@ -145,6 +146,7 @@ class LayoutManager: ObservableObject {
             var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
             savedLayouts[name] = newDict
             UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            UserDefaults.standard.synchronize()
             DispatchQueue.main.async {
                 self.layouts = savedLayouts
             }
@@ -232,6 +234,7 @@ class LayoutManager: ObservableObject {
             }
 
             let windows = value as! CFArray
+            var windowFound = false
 
             // Find the window with matching name
             for i in 0..<CFArrayGetCount(windows) {
@@ -243,23 +246,75 @@ class LayoutManager: ObservableObject {
                 let windowTitle = title as? String ?? ""
 
                 if windowTitle == savedName || (savedName.isEmpty && windowTitle.isEmpty) {
-                    // Set position
-                    var position = CGPoint(x: x, y: y)
-                    let posValue = AXValueCreate(.cgPoint, &position)
-                    let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
-                    if posResult != AXError.success {
-                        continue
+                    // Get current window position and size to check if it needs to be moved
+                    var currentPosition: CFTypeRef?
+                    var currentSize: CFTypeRef?
+                    AXUIElementCopyAttributeValue(windowElement, kAXPositionAttribute as CFString, &currentPosition)
+                    AXUIElementCopyAttributeValue(windowElement, kAXSizeAttribute as CFString, &currentSize)
+                    
+                    var currentPos = CGPoint.zero
+                    var currentSz = CGSize.zero
+                    
+                    if let pos = currentPosition {
+                        AXValueGetValue(pos as! AXValue, .cgPoint, &currentPos)
                     }
+                    if let sz = currentSize {
+                        AXValueGetValue(sz as! AXValue, .cgSize, &currentSz)
+                    }
+                    
+                    let targetPosition = CGPoint(x: x, y: y)
+                    let targetSize = CGSize(width: width, height: height)
+                    
+                    // Only move the window if it's not already in the correct position
+                    let positionTolerance: CGFloat = 5.0
+                    let sizeTolerance: CGFloat = 5.0
+                    
+                    let positionMatches = abs(currentPos.x - targetPosition.x) < positionTolerance && 
+                                        abs(currentPos.y - targetPosition.y) < positionTolerance
+                    let sizeMatches = abs(currentSz.width - targetSize.width) < sizeTolerance && 
+                                    abs(currentSz.height - targetSize.height) < sizeTolerance
+                    
+                    if !positionMatches || !sizeMatches {
+                        // Set position
+                        var position = targetPosition
+                        let posValue = AXValueCreate(.cgPoint, &position)
+                        let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
+                        if posResult != AXError.success {
+                            continue
+                        }
 
+                        // Set size
+                        var size = targetSize
+                        let sizeValue = AXValueCreate(.cgSize, &size)
+                        let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
+                        if sizeResult != AXError.success {
+                            continue
+                        }
+                    }
+                    
+                    windowFound = true
+                    break
+                }
+            }
+            
+            // If no window was found with the exact name, try to find any window from this app
+            // This helps when window titles change or when there's only one window
+            if !windowFound && CFArrayGetCount(windows) > 0 {
+                let window = CFArrayGetValueAtIndex(windows, 0)
+                let windowElement = unsafeBitCast(window, to: AXUIElement.self)
+                
+                // Set position
+                var position = CGPoint(x: x, y: y)
+                let posValue = AXValueCreate(.cgPoint, &position)
+                let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
+                if posResult == AXError.success {
                     // Set size
                     var size = CGSize(width: width, height: height)
                     let sizeValue = AXValueCreate(.cgSize, &size)
                     let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
-                    if sizeResult != AXError.success {
-                        continue
+                    if sizeResult == AXError.success {
+                        windowFound = true
                     }
-
-                    break
                 }
             }
         }
@@ -269,6 +324,7 @@ class LayoutManager: ObservableObject {
         var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
         savedLayouts.removeValue(forKey: name)
         UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+        UserDefaults.standard.synchronize()
         DispatchQueue.main.async {
             self.layouts = savedLayouts
         }
@@ -290,6 +346,7 @@ class LayoutManager: ObservableObject {
             
             // Save to UserDefaults
             UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            UserDefaults.standard.synchronize()
             
             // Update published property on main thread
             DispatchQueue.main.async {
@@ -311,6 +368,7 @@ class LayoutManager: ObservableObject {
             
             // Save to UserDefaults
             UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            UserDefaults.standard.synchronize()
             
             // Update published property on main thread
             DispatchQueue.main.async {

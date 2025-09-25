@@ -87,6 +87,7 @@ struct SettingsView: View {
             layoutDict["shortcut"] = shortcut
             savedLayouts[layoutName] = NSDictionary(dictionary: layoutDict)
             UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            UserDefaults.standard.synchronize()
             // Force UI update by creating a new dictionary reference
             manager.layouts = savedLayouts
         }
@@ -518,6 +519,7 @@ struct EditLayoutView: View {
             let layoutDict: NSDictionary = ["data": data, "date": Date()]
             savedLayouts[name] = layoutDict
             UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            UserDefaults.standard.synchronize()
             manager.layouts = savedLayouts
         }
     }

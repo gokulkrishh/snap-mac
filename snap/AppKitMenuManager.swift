@@ -3,7 +3,18 @@ import SwiftUI
 import Combine
 import ServiceManagement
 
-class AppKitMenuManager: ObservableObject {
+class CustomMenu: NSMenu {
+    override func performActionForItem(at index: Int) {
+        // Don't auto-close the menu
+        if let item = item(at: index), let action = item.action {
+            if let target = item.target {
+                _ = target.perform(action, with: item)
+            }
+        }
+    }
+}
+
+class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
     @Published var layouts: [String: NSDictionary] = [:]
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
@@ -12,7 +23,8 @@ class AppKitMenuManager: ObservableObject {
     // Global hotkey monitoring
     private var registeredShortcuts: [String: (layoutName: String, eventMonitor: Any)] = [:]
     
-    init() {
+    override init() {
+        super.init()
         loadLayouts()
         setupMenuBar()
         observeLayoutManager()
@@ -57,8 +69,9 @@ class AppKitMenuManager: ObservableObject {
     }
     
     private func createMenu() {
-        menu = NSMenu()
+        menu = CustomMenu()
         menu?.autoenablesItems = false
+        menu?.delegate = self
         
         // Show saved layouts directly in main menu
         let allLayouts = layouts.sorted {
@@ -322,8 +335,6 @@ class AppKitMenuManager: ObservableObject {
             // Refresh menu to show the new layout
             DispatchQueue.main.async {
                 self.refreshMenu()
-                // Keep menu open by reassigning it to statusItem
-                self.statusItem?.menu = self.menu
             }
         }
     }
@@ -331,17 +342,14 @@ class AppKitMenuManager: ObservableObject {
     @objc private func loadLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
         Task { await layoutManager.loadLayout(name: layoutName) }
-        // Menu closes automatically for load actions
+        // Manually close menu for load actions
+        closeMenu()
     }
     
     @objc private func replaceLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
         Task { 
             await layoutManager.replaceLayout(name: layoutName)
-            // Keep menu open by reassigning it to statusItem
-            DispatchQueue.main.async {
-                self.statusItem?.menu = self.menu
-            }
         }
     }
     
@@ -365,10 +373,6 @@ class AppKitMenuManager: ObservableObject {
             let newName = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if !newName.isEmpty && newName != oldName {
                 layoutManager.renameLayout(from: oldName, to: newName)
-                // Keep menu open by reassigning it to statusItem
-                DispatchQueue.main.async {
-                    self.statusItem?.menu = self.menu
-                }
             }
         }
     }
@@ -477,10 +481,6 @@ class AppKitMenuManager: ObservableObject {
         layoutManager.setShortcut(for: layoutName, shortcut: shortcut)
         currentShortcutWindow?.close()
         clearShortcutSession()
-        // Keep menu open by reassigning it to statusItem
-        DispatchQueue.main.async {
-            self.statusItem?.menu = self.menu
-        }
     }
     
     private func clearShortcutSession() {
@@ -497,10 +497,6 @@ class AppKitMenuManager: ObservableObject {
     @objc private func deleteLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
         layoutManager.deleteLayout(name: layoutName)
-        // Keep menu open by reassigning it to statusItem
-        DispatchQueue.main.async {
-            self.statusItem?.menu = self.menu
-        }
     }
     
     
@@ -522,10 +518,6 @@ class AppKitMenuManager: ObservableObject {
         }
         
         refreshMenu()
-        // Keep menu open by reassigning it to statusItem
-        DispatchQueue.main.async {
-            self.statusItem?.menu = self.menu
-        }
     }
     
     @objc private func toggleApplyToAllMonitors() {
@@ -533,10 +525,6 @@ class AppKitMenuManager: ObservableObject {
         let newValue = !currentValue
         UserDefaults.standard.set(newValue, forKey: "applySameToAllMonitors")
         refreshMenu()
-        // Keep menu open by reassigning it to statusItem
-        DispatchQueue.main.async {
-            self.statusItem?.menu = self.menu
-        }
     }
     
     @objc private func toggleCheckUpdates() {
@@ -544,10 +532,6 @@ class AppKitMenuManager: ObservableObject {
         let newValue = !currentValue
         UserDefaults.standard.set(newValue, forKey: "checkUpdates")
         refreshMenu()
-        // Keep menu open by reassigning it to statusItem
-        DispatchQueue.main.async {
-            self.statusItem?.menu = self.menu
-        }
     }
     
     @objc private func deleteAllLayouts() {
@@ -555,13 +539,10 @@ class AppKitMenuManager: ObservableObject {
         layoutManager.layouts.removeAll()
         UserDefaults.standard.removeObject(forKey: "layouts")
         refreshMenu()
-        // Keep menu open by reassigning it to statusItem
-        DispatchQueue.main.async {
-            self.statusItem?.menu = self.menu
-        }
     }
     
     @objc private func quitApp() {
+        closeMenu()
         NSApplication.shared.terminate(nil)
     }
     
@@ -572,6 +553,28 @@ class AppKitMenuManager: ObservableObject {
         if let statusItem = statusItem {
             statusItem.menu = menu
         }
+    }
+    
+    private func closeMenu() {
+        statusItem?.menu = nil
+    }
+    
+    // MARK: - NSMenuDelegate
+    
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
+        // Prevent menu from auto-closing
+    }
+    
+    func menuWillOpen(_ menu: NSMenu) {
+        // Menu is about to open
+    }
+    
+    func menuDidClose(_ menu: NSMenu) {
+        // Menu has closed
+    }
+    
+    func menu(_ menu: NSMenu, update item: NSMenuItem, at index: Int, shouldCancel: Bool) -> Bool {
+        return false
     }
     
     // MARK: - Global Shortcut Management

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 /// Manages dynamic icon behavior for Snap window manager
 @MainActor
@@ -21,23 +22,12 @@ class DynamicIconManager: ObservableObject {
     
     /// Set up dynamic icon with system appearance changes
     private func setupDynamicIcon() {
-        // Listen for appearance changes to update icon dynamically
-        NotificationCenter.default.addObserver(
-            forName: NSApp.effectiveAppearanceChangedNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateIconForCurrentAppearance()
-        }
-        
         // Initial icon update
         updateIconForCurrentAppearance()
     }
     
     /// Update icon based on current system appearance
     private func updateIconForCurrentAppearance() {
-        let appearance = NSApp.effectiveAppearance
-        
         // The Icon Composer design automatically adapts to light/dark mode
         // through the "appearance" : "dark" specialization in icon.json
         

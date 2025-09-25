@@ -8,6 +8,7 @@ import AppKit
 class LayoutManager: ObservableObject {
     @Published var layouts: [String: NSDictionary] = [:]
     private var globalMonitor: Any?
+    private let dynamicIconManager = DynamicIconManager.shared
 
     init() {
         loadLayouts()
@@ -74,6 +75,8 @@ class LayoutManager: ObservableObject {
     }
     
     private func saveLayoutWithName(_ layoutName: String?) async {
+        dynamicIconManager.startWindowOperation()
+        
         // Request screen recording permission if not granted
         if !CGPreflightScreenCaptureAccess() {
             CGRequestScreenCaptureAccess()
@@ -158,6 +161,7 @@ class LayoutManager: ObservableObject {
         UserDefaults.standard.set(savedLayouts, forKey: "layouts")
         DispatchQueue.main.async {
             self.layouts = savedLayouts
+            self.dynamicIconManager.completeWindowOperation()
         }
     }
 

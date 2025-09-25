@@ -26,5 +26,7 @@
 	<string>Snap needs accessibility permissions to arrange and manage window positions.</string>
 	<key>NSScreenRecordingUsageDescription</key>
 	<string>Snap needs screen recording permissions to capture window positions and save layouts.</string>
+	<key>NSAppIconName</key>
+	<string>Snap</string>
 </dict>
 </plist>

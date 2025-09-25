@@ -7,39 +7,11 @@ import AppKit
 @MainActor
 class LayoutManager: ObservableObject {
     @Published var layouts: [String: NSDictionary] = [:]
-    private var globalMonitor: Any?
     private let dynamicIconManager = DynamicIconManager.shared
 
     init() {
         loadLayouts()
-        setupGlobalHotkeys()
-    }
-
-    deinit {
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-    }
-
-    private func setupGlobalHotkeys() {
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self else { return }
-
-            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            let keyCode = Int(event.keyCode)
-
-            // Check if this matches any layout shortcut
-            for (name, layoutDict) in self.layouts {
-                if let shortcut = layoutDict["shortcut"] as? [String: Any],
-                   let storedKeyCode = shortcut["keyCode"] as? Int,
-                   let storedModifiers = shortcut["modifiers"] as? Int,
-                   keyCode == storedKeyCode && modifiers.rawValue == storedModifiers {
-                    // Load this layout
-                    Task { await self.loadLayout(name: name) }
-                    break
-                }
-            }
-        }
+        // Global shortcuts are now handled by AppKitMenuManager to avoid conflicts
     }
 
     private func loadLayouts() {

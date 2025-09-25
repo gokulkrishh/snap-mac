@@ -352,6 +352,8 @@ struct ShortcutRecorderView: View {
             let key = keyName(for: keyCode)
             parts.append(key)
             recordedShortcut = parts.joined(separator: "")
+            
+            print("🎹 Recorded shortcut: \(recordedShortcut) (keyCode: \(keyCode), modifiers: \(modifiers.rawValue))")
 
             // Stop monitoring after recording
             stopMonitoringKeys()

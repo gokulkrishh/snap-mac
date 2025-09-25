@@ -1,9 +1,18 @@
 # Xcode
 build/
 *.xcuserstate
+dist/
 
 # Swift Package Manager
 .build/
 
 # macOS
 .DS_Store
+
+# Distribution packages
+*.pkg
+*.dmg
+temp_*.dmg
+
+# Build artifacts
+*.app

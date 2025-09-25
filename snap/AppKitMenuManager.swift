@@ -139,6 +139,20 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         settingsItem.submenu = settingsMenu
         menu?.addItem(settingsItem)
         
+        menu?.addItem(NSMenuItem.separator())
+        
+        // Test Global Shortcuts
+        let testItem = NSMenuItem(title: "Test Global Shortcuts", action: #selector(testShortcuts), keyEquivalent: "")
+        testItem.target = self
+        menu?.addItem(testItem)
+        
+        // Check Accessibility Permissions
+        let permissionsItem = NSMenuItem(title: "Check Accessibility Permissions", action: #selector(checkPermissions), keyEquivalent: "")
+        permissionsItem.target = self
+        menu?.addItem(permissionsItem)
+        
+        menu?.addItem(NSMenuItem.separator())
+        
         // Quit
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
@@ -609,6 +623,45 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         refreshMenu()
     }
     
+    @objc private func testShortcuts() {
+        testGlobalShortcuts()
+        
+        // Show results in alert
+        let alert = NSAlert()
+        alert.messageText = "Global Shortcuts Test"
+        
+        let hasPermissions = checkAccessibilityPermissions()
+        let shortcutCount = registeredShortcuts.count
+        
+        var message = "Accessibility Permissions: \(hasPermissions ? "✅ Granted" : "❌ Missing")\n"
+        message += "Registered Shortcuts: \(shortcutCount)\n\n"
+        
+        if shortcutCount > 0 {
+            message += "Active shortcuts:\n"
+            for (shortcut, (layoutName, _)) in registeredShortcuts {
+                message += "• \(shortcut) → \(layoutName)\n"
+            }
+        } else {
+            message += "No shortcuts registered. Check accessibility permissions and layout configurations."
+        }
+        
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        
+        if !hasPermissions {
+            alert.addButton(withTitle: "Open System Preferences")
+        }
+        
+        let response = alert.runModal()
+        if response == .alertSecondButtonReturn {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        }
+    }
+    
+    @objc private func checkPermissions() {
+        requestAccessibilityPermissions()
+    }
+    
     @objc private func quitApp() {
         closeMenu()
         NSApplication.shared.terminate(nil)
@@ -648,14 +701,152 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
     // MARK: - Global Shortcut Management
     
     private func updateGlobalShortcuts() {
+        // Check accessibility permissions first
+        guard checkAccessibilityPermissions() else {
+            print("⚠️ Global shortcuts require accessibility permissions")
+            return
+        }
+        
         // Unregister all existing shortcuts
         unregisterAllShortcuts()
         
         // Register shortcuts for layouts that have them
         for (layoutName, layoutDict) in layouts {
+            // Handle both string and dictionary shortcut formats
             if let shortcutString = layoutDict["shortcut"] as? String, !shortcutString.isEmpty {
                 registerGlobalShortcut(shortcutString, for: layoutName)
+            } else if let shortcutDict = layoutDict["shortcut"] as? [String: Any],
+                      let keyCode = shortcutDict["keyCode"] as? Int,
+                      let modifiers = shortcutDict["modifiers"] as? Int {
+                // Convert dictionary format to string format for consistency
+                let shortcutString = convertShortcutDictToString(keyCode: keyCode, modifiers: modifiers)
+                registerGlobalShortcut(shortcutString, for: layoutName)
             }
+        }
+        
+        print("✅ Registered \(registeredShortcuts.count) global shortcuts")
+    }
+    
+    private func checkAccessibilityPermissions() -> Bool {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): false]
+        let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
+        return trusted
+    }
+    
+    func requestAccessibilityPermissions() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true]
+        AXIsProcessTrustedWithOptions(options as CFDictionary)
+        
+        // Show helpful dialog
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            let alert = NSAlert()
+            alert.messageText = "Accessibility Permission Required"
+            alert.informativeText = "Snap needs accessibility permissions to register global shortcuts. Please grant permission in System Preferences > Security & Privacy > Privacy > Accessibility, then restart the app."
+            alert.addButton(withTitle: "Open System Preferences")
+            alert.addButton(withTitle: "OK")
+            
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+            }
+        }
+    }
+    
+    func testGlobalShortcuts() {
+        print("🧪 Testing global shortcuts...")
+        print("📊 Accessibility permissions: \(checkAccessibilityPermissions() ? "✅ Granted" : "❌ Missing")")
+        print("📋 Registered shortcuts: \(registeredShortcuts.count)")
+        
+        for (shortcut, (layoutName, _)) in registeredShortcuts {
+            print("   • \(shortcut) -> \(layoutName)")
+        }
+        
+        if registeredShortcuts.isEmpty {
+            print("⚠️ No shortcuts registered. Check accessibility permissions and layout configurations.")
+        }
+    }
+    
+    private func convertShortcutDictToString(keyCode: Int, modifiers: Int) -> String {
+        var parts: [String] = []
+        
+        if modifiers & NSEvent.ModifierFlags.command.rawValue != 0 {
+            parts.append("⌘")
+        }
+        if modifiers & NSEvent.ModifierFlags.shift.rawValue != 0 {
+            parts.append("⇧")
+        }
+        if modifiers & NSEvent.ModifierFlags.option.rawValue != 0 {
+            parts.append("⌥")
+        }
+        if modifiers & NSEvent.ModifierFlags.control.rawValue != 0 {
+            parts.append("⌃")
+        }
+        
+        let keyString = keyCodeToString(keyCode)
+        parts.append(keyString)
+        
+        return parts.joined(separator: "")
+    }
+    
+    private func keyCodeToString(_ keyCode: Int) -> String {
+        switch keyCode {
+        case 0: return "A"
+        case 1: return "S"
+        case 2: return "D"
+        case 3: return "F"
+        case 4: return "H"
+        case 5: return "G"
+        case 6: return "Z"
+        case 7: return "X"
+        case 8: return "C"
+        case 9: return "V"
+        case 11: return "B"
+        case 12: return "Q"
+        case 13: return "W"
+        case 14: return "E"
+        case 15: return "R"
+        case 16: return "Y"
+        case 17: return "T"
+        case 18: return "1"
+        case 19: return "2"
+        case 20: return "3"
+        case 21: return "4"
+        case 22: return "6"
+        case 23: return "5"
+        case 24: return "="
+        case 25: return "9"
+        case 26: return "7"
+        case 27: return "-"
+        case 28: return "8"
+        case 29: return "0"
+        case 30: return "]"
+        case 31: return "O"
+        case 32: return "U"
+        case 33: return "["
+        case 34: return "I"
+        case 35: return "P"
+        case 36: return "Return"
+        case 37: return "L"
+        case 38: return "J"
+        case 39: return "'"
+        case 40: return "K"
+        case 41: return ";"
+        case 42: return "\\"
+        case 43: return ","
+        case 44: return "/"
+        case 45: return "N"
+        case 46: return "M"
+        case 47: return "."
+        case 48: return "Tab"
+        case 49: return "Space"
+        case 50: return "`"
+        case 51: return "Delete"
+        case 53: return "Escape"
+        case 123: return "←"
+        case 124: return "→"
+        case 125: return "↓"
+        case 126: return "↑"
+        default: return "Unknown"
         }
     }
     
@@ -667,7 +858,16 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
     }
     
     private func registerGlobalShortcut(_ shortcutString: String, for layoutName: String) {
-        guard let (keyCode, modifiers) = parseShortcutString(shortcutString) else { return }
+        guard let (keyCode, modifiers) = parseShortcutString(shortcutString) else {
+            print("❌ Failed to parse shortcut: \(shortcutString)")
+            return
+        }
+        
+        // Check for duplicate shortcuts
+        if registeredShortcuts[shortcutString] != nil {
+            print("⚠️ Duplicate shortcut detected: \(shortcutString)")
+            return
+        }
         
         let eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // Check if the key matches
@@ -685,39 +885,63 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             let modifiersMatch = actualRelevantModifiers == expectedRelevantModifiers
             
             if keyMatches && modifiersMatch {
+                print("🎯 Global shortcut triggered: \(shortcutString) -> \(layoutName)")
                 DispatchQueue.main.async {
                     Task { await self?.layoutManager.loadLayout(name: layoutName) }
                 }
             }
         }
         
-        registeredShortcuts[shortcutString] = (layoutName: layoutName, eventMonitor: eventMonitor as Any)
+        if let monitor = eventMonitor {
+            registeredShortcuts[shortcutString] = (layoutName: layoutName, eventMonitor: monitor)
+            print("✅ Registered shortcut: \(shortcutString) -> \(layoutName)")
+        } else {
+            print("❌ Failed to register shortcut: \(shortcutString)")
+        }
     }
     
     private func parseShortcutString(_ shortcutString: String) -> (keyCode: UInt16, modifiers: UInt)? {
         var modifiers: UInt = 0
-        var keyString = shortcutString
+        var keyString = shortcutString.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Validate input
+        guard !keyString.isEmpty else {
+            print("❌ Empty shortcut string")
+            return nil
+        }
         
         // Parse modifier flags
-        if shortcutString.contains("⌘") {
+        if keyString.contains("⌘") {
             modifiers |= NSEvent.ModifierFlags.command.rawValue
             keyString = keyString.replacingOccurrences(of: "⌘", with: "")
         }
-        if shortcutString.contains("⌥") {
+        if keyString.contains("⌥") {
             modifiers |= NSEvent.ModifierFlags.option.rawValue
             keyString = keyString.replacingOccurrences(of: "⌥", with: "")
         }
-        if shortcutString.contains("⌃") {
+        if keyString.contains("⌃") {
             modifiers |= NSEvent.ModifierFlags.control.rawValue
             keyString = keyString.replacingOccurrences(of: "⌃", with: "")
         }
-        if shortcutString.contains("⇧") {
+        if keyString.contains("⇧") {
             modifiers |= NSEvent.ModifierFlags.shift.rawValue
             keyString = keyString.replacingOccurrences(of: "⇧", with: "")
         }
         
+        // Clean up any remaining whitespace
+        keyString = keyString.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Require at least one modifier for global shortcuts
+        guard modifiers != 0 else {
+            print("❌ Global shortcuts require at least one modifier key")
+            return nil
+        }
+        
         // Parse key code
-        guard let keyCode = stringToKeyCode(keyString) else { return nil }
+        guard let keyCode = stringToKeyCode(keyString) else {
+            print("❌ Unknown key: \(keyString)")
+            return nil
+        }
         
         return (keyCode: keyCode, modifiers: modifiers)
     }

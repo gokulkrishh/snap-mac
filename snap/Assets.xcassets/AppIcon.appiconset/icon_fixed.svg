@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#007AFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0051D5;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle with gradient -->
+  <circle cx="50" cy="50" r="48" fill="url(#bg)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+  
+  <!-- First window (background) -->
+  <rect x="20" y="25" width="35" height="25" rx="4" fill="rgba(255,255,255,0.9)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  
+  <!-- Second window (foreground) -->
+  <rect x="45" y="50" width="35" height="25" rx="4" fill="rgba(255,255,255,0.95)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+  
+  <!-- Window controls for first window -->
+  <circle cx="28" cy="32" r="2" fill="rgba(255,100,100,0.8)"/>
+  <circle cx="35" cy="32" r="2" fill="rgba(255,200,100,0.8)"/>
+  <circle cx="42" cy="32" r="2" fill="rgba(100,200,100,0.8)"/>
+  
+  <!-- Window controls for second window -->
+  <circle cx="53" cy="57" r="2" fill="rgba(255,100,100,0.8)"/>
+  <circle cx="60" cy="57" r="2" fill="rgba(255,200,100,0.8)"/>
+  <circle cx="67" cy="57" r="2" fill="rgba(100,200,100,0.8)"/>
+  
+  <!-- Subtle shadow for depth -->
+  <ellipse cx="50" cy="75" rx="25" ry="8" fill="rgba(0,0,0,0.1)"/>
+</svg>

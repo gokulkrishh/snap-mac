@@ -61,12 +61,12 @@ class AppKitMenuManager: ObservableObject {
         menu?.autoenablesItems = false
         
         // Save Layout
-        let saveItem = NSMenuItem(title: "Save Layout", action: #selector(saveLayout), keyEquivalent: "")
+        let saveItem = NSMenuItem(title: "Save layout", action: #selector(saveLayout), keyEquivalent: "")
         saveItem.target = self
         menu?.addItem(saveItem)
         
         // Saved Layouts submenu
-        let savedLayoutsItem = NSMenuItem(title: "Saved Layouts", action: nil, keyEquivalent: "")
+        let savedLayoutsItem = NSMenuItem(title: "Saved layouts", action: nil, keyEquivalent: "")
         let savedLayoutsMenu = NSMenu()
         
         let allLayouts = layouts.sorted {
@@ -118,10 +118,10 @@ class AppKitMenuManager: ObservableObject {
         settingsMenu.addItem(NSMenuItem.separator())
         
         // Delete All Layouts
-        let deleteAllItem = NSMenuItem(title: "Delete All Layouts", action: #selector(deleteAllLayouts), keyEquivalent: "")
+        let deleteAllItem = NSMenuItem(title: "Delete all layouts", action: #selector(deleteAllLayouts), keyEquivalent: "")
         deleteAllItem.target = self
         deleteAllItem.attributedTitle = NSAttributedString(
-            string: "Delete All Layouts",
+            string: "Delete all layouts",
             attributes: [.foregroundColor: NSColor.systemRed]
         )
         settingsMenu.addItem(deleteAllItem)
@@ -142,31 +142,31 @@ class AppKitMenuManager: ObservableObject {
         // Create submenu for layout actions
         let submenu = NSMenu()
         
-        let loadItem = NSMenuItem(title: "Load Layout", action: #selector(loadLayout(_:)), keyEquivalent: "")
+        let loadItem = NSMenuItem(title: "Load layout", action: #selector(loadLayout(_:)), keyEquivalent: "")
         loadItem.target = self
         loadItem.representedObject = name
         submenu.addItem(loadItem)
         
-        let replaceItem = NSMenuItem(title: "Replace Layout", action: #selector(replaceLayout(_:)), keyEquivalent: "")
+        let replaceItem = NSMenuItem(title: "Replace layout", action: #selector(replaceLayout(_:)), keyEquivalent: "")
         replaceItem.target = self
         replaceItem.representedObject = name
         submenu.addItem(replaceItem)
         
         submenu.addItem(NSMenuItem.separator())
         
-        let recordShortcutItem = NSMenuItem(title: "Record Shortcut", action: #selector(recordShortcut(_:)), keyEquivalent: "")
+        let recordShortcutItem = NSMenuItem(title: "Record shortcut", action: #selector(recordShortcut(_:)), keyEquivalent: "")
         recordShortcutItem.target = self
         recordShortcutItem.representedObject = name
         submenu.addItem(recordShortcutItem)
         
         submenu.addItem(NSMenuItem.separator())
         
-        let renameItem = NSMenuItem(title: "Rename Layout", action: #selector(renameLayout(_:)), keyEquivalent: "")
+        let renameItem = NSMenuItem(title: "Rename layout", action: #selector(renameLayout(_:)), keyEquivalent: "")
         renameItem.target = self
         renameItem.representedObject = name
         submenu.addItem(renameItem)
         
-        let deleteItem = NSMenuItem(title: "Delete Layout", action: #selector(deleteLayout(_:)), keyEquivalent: "")
+        let deleteItem = NSMenuItem(title: "Delete layout", action: #selector(deleteLayout(_:)), keyEquivalent: "")
         deleteItem.target = self
         deleteItem.representedObject = name
         submenu.addItem(deleteItem)

@@ -74,7 +74,7 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         let allLayouts = layouts.sorted {
             let date1 = $0.value["date"] as? Date ?? Date.distantPast
             let date2 = $1.value["date"] as? Date ?? Date.distantPast
-            return date1 < date2
+            return date1 > date2  // Newest first (most recent creation date)
         }
         
         if !allLayouts.isEmpty {
@@ -107,20 +107,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         launchItem.target = self
         launchItem.state = launchAtLogin ? .on : .off
         settingsMenu.addItem(launchItem)
-        
-        // Apply to All Monitors
-        let applyToAllMonitors = UserDefaults.standard.bool(forKey: "applySameToAllMonitors")
-        let monitorsItem = NSMenuItem(title: "Apply to All Monitors", action: #selector(toggleApplyToAllMonitors), keyEquivalent: "")
-        monitorsItem.target = self
-        monitorsItem.state = applyToAllMonitors ? .on : .off
-        settingsMenu.addItem(monitorsItem)
-        
-        // Check for Updates
-        let checkUpdates = UserDefaults.standard.bool(forKey: "checkUpdates")
-        let updatesItem = NSMenuItem(title: "Check for Updates", action: #selector(toggleCheckUpdates), keyEquivalent: "")
-        updatesItem.target = self
-        updatesItem.state = checkUpdates ? .on : .off
-        settingsMenu.addItem(updatesItem)
         
         settingsMenu.addItem(NSMenuItem.separator())
         
@@ -561,6 +547,9 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         // Update login item
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
             print("Failed to get bundle identifier")
+            // Revert the UserDefaults change since we failed
+            UserDefaults.standard.set(currentValue, forKey: "launchAtLogin")
+            showLaunchAtLoginError()
             return
         }
         
@@ -568,37 +557,35 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         do {
             if newValue {
                 try service.register()
+                print("✅ Successfully registered launch at login")
             } else {
                 try service.unregister()
+                print("✅ Successfully unregistered launch at login")
             }
         } catch {
-            print("Failed to update login item: \(error)")
-            // For sandboxed apps, SMAppService may not work
-            // Show user-friendly error message
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Launch at Login"
-                alert.informativeText = "Unable to manage launch at login setting. This may be due to app sandboxing restrictions. You can manually add this app to your Login Items in System Preferences > Users & Groups > Login Items."
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
+            print("❌ Failed to update login item: \(error)")
+            // Revert the UserDefaults change since we failed
+            UserDefaults.standard.set(currentValue, forKey: "launchAtLogin")
+            showLaunchAtLoginError()
         }
         
         refreshMenu()
     }
     
-    @objc private func toggleApplyToAllMonitors() {
-        let currentValue = UserDefaults.standard.bool(forKey: "applySameToAllMonitors")
-        let newValue = !currentValue
-        UserDefaults.standard.set(newValue, forKey: "applySameToAllMonitors")
-        refreshMenu()
-    }
-    
-    @objc private func toggleCheckUpdates() {
-        let currentValue = UserDefaults.standard.bool(forKey: "checkUpdates")
-        let newValue = !currentValue
-        UserDefaults.standard.set(newValue, forKey: "checkUpdates")
-        refreshMenu()
+    private func showLaunchAtLoginError() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Launch at Login"
+            alert.informativeText = "Unable to manage launch at login setting. This may be due to app sandboxing restrictions. You can manually add this app to your Login Items in System Preferences > Users & Groups > Login Items."
+            alert.addButton(withTitle: "Open System Preferences")
+            alert.addButton(withTitle: "OK")
+            
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                // Open System Preferences to Login Items
+                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.users?LoginItems")!)
+            }
+        }
     }
     
     @objc private func deleteAllLayouts() {

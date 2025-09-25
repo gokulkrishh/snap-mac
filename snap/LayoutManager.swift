@@ -20,24 +20,6 @@ class LayoutManager: ObservableObject {
         self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
     }
     
-    func getSortedLayoutNames() -> [String] {
-        return layouts.compactMap { (name, layoutDict) -> (String, Date)? in
-            guard let dict = layoutDict as? [String: Any],
-                  let date = dict["date"] as? Date else { return nil }
-            return (name, date)
-        }.sorted { $0.1 < $1.1 }.map { $0.0 }
-    }
-    
-    func getSortedFavoriteLayoutNames() -> [String] {
-        return layouts.compactMap { (name, layoutDict) -> (String, Date)? in
-            guard let dict = layoutDict as? [String: Any],
-                  let isFavorite = dict["favorite"] as? Bool,
-                  isFavorite,
-                  let date = dict["date"] as? Date else { return nil }
-            return (name, date)
-        }.sorted { $0.1 < $1.1 }.map { $0.0 }
-    }
-
     func saveLayout() async {
         await saveLayoutWithName(nil)
     }
@@ -103,7 +85,7 @@ class LayoutManager: ObservableObject {
         if let layoutName = layoutName {
             // Replace existing layout
             name = layoutName
-            // Preserve existing shortcut and favorite status
+            // Preserve existing shortcut status
             if let existingLayout = savedLayouts[layoutName] as? [String: Any] {
                 let data = try! JSONSerialization.data(withJSONObject: layoutData)
                 let dataString = data.base64EncodedString()
@@ -112,7 +94,6 @@ class LayoutManager: ObservableObject {
                     "data": dataString,
                     "date": Date(),
                     "shortcut": shortcutValue,
-                    "favorite": existingLayout["favorite"] as? Bool ?? false
                 ]
                 savedLayouts[name] = layoutDict as NSDictionary
             } else {
@@ -138,20 +119,6 @@ class LayoutManager: ObservableObject {
         }
     }
 
-    func toggleFavorite(name: String) {
-        if var dict = layouts[name] as? [String: Any] {
-            let currentFav = dict["favorite"] as? Bool ?? false
-            dict["favorite"] = !currentFav
-            let newDict = NSDictionary(dictionary: dict)
-            var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
-            savedLayouts[name] = newDict
-            UserDefaults.standard.set(savedLayouts, forKey: "layouts")
-            UserDefaults.standard.synchronize()
-            DispatchQueue.main.async {
-                self.layouts = savedLayouts
-            }
-        }
-    }
 
     func loadLayout(name: String) async {
         if !AXIsProcessTrusted() {

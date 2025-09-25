@@ -104,3 +104,35 @@ These are practices (some new, some evergreen) that I consider especially import
 
 ### Quick Layout Preview Overlay
 • Subtle screen overlay showing zones when triggering a shortcut. Helps with discoverability and precision.
+
+## SwiftUI Menu Implementation Gotchas
+
+### Menu Label Limitations
+• **CRITICAL**: SwiftUI Menu labels do NOT support complex layouts like HStack, VStack, or custom views
+• **DO NOT USE**: HStack, Spacer(), or custom View components in Menu labels - they will not render
+• **USE INSTEAD**: AttributedString for styled text, or simple string concatenation with tab characters (\t)
+• **WORKING SOLUTION**: Use AttributedString with different font sizes and colors for proper macOS-style menu shortcuts
+
+### Menu Shortcut Display Best Practices
+• Use AttributedString to create rich text with different styling (font size, color)
+• Apply .font(.caption) and .foregroundColor(.secondary) to shortcut text for proper macOS styling
+• Use spacing ("  ") between layout name and shortcut for visual separation
+• Only display shortcuts when they exist (conditional rendering)
+
+### Common Menu Implementation Mistakes
+• ❌ Trying to use HStack/Spacer in Menu labels - doesn't work
+• ❌ Using Label with custom content in Menu labels - doesn't render properly  
+• ❌ Complex View hierarchies in Menu labels - ignored by SwiftUI
+• ❌ AttributedString in Menu labels - not properly supported
+• ❌ NSWindow.menuBar property - doesn't exist (NSWindow has no menuBar property)
+• ✅ Simple string concatenation with tab characters - works for basic alignment
+• ✅ Using NSMenuItem directly with NSAttributedString - proper solution but requires dropping SwiftUI Menu
+
+### AppKit Menu Implementation Best Practices
+• **NSMenuItem with NSAttributedString**: Use NSMenuItem.attributedTitle for proper styling
+• **Font Styling**: Use NSFont.menuFont(ofSize: NSFont.smallSystemFontSize) for smaller shortcut text
+• **Color Styling**: Use NSColor.secondaryLabelColor for muted shortcut appearance
+• **Tab Alignment**: Use "\t" character for proper macOS menu alignment
+• **Menu Structure**: Create NSMenu with submenus for complex layouts
+• **Status Bar Integration**: Use NSStatusItem for menu bar presence
+• **App Delegate Pattern**: Use NSApplicationDelegate for proper app lifecycle management

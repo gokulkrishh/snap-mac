@@ -6,14 +6,31 @@
 //
 
 import SwiftUI
+import AppKit
 
 @main
 struct SnapApp: App {
-    @StateObject private var manager = LayoutManager()
-
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     var body: some Scene {
-        MenuBarExtra("Snap", systemImage: "macwindow") {
-            MenuBarContent(manager: manager)
+        Settings {
+            EmptyView()
         }
+    }
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    private var menuManager: AppKitMenuManager?
+    
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Hide the dock icon since this is a menu bar app
+        NSApp.setActivationPolicy(.accessory)
+        
+        // Initialize the menu manager
+        menuManager = AppKitMenuManager()
+    }
+    
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false // Keep app running even when no windows are open
     }
 }

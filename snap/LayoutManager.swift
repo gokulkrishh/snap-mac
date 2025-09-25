@@ -42,10 +42,38 @@ class LayoutManager: ObservableObject {
     }
 
     private func loadLayouts() {
-        self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+        DispatchQueue.main.async {
+            self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+        }
+    }
+    
+    func getSortedLayoutNames() -> [String] {
+        return layouts.compactMap { (name, layoutDict) -> (String, Date)? in
+            guard let dict = layoutDict as? [String: Any],
+                  let date = dict["date"] as? Date else { return nil }
+            return (name, date)
+        }.sorted { $0.1 < $1.1 }.map { $0.0 }
+    }
+    
+    func getSortedFavoriteLayoutNames() -> [String] {
+        return layouts.compactMap { (name, layoutDict) -> (String, Date)? in
+            guard let dict = layoutDict as? [String: Any],
+                  let isFavorite = dict["favorite"] as? Bool,
+                  isFavorite,
+                  let date = dict["date"] as? Date else { return nil }
+            return (name, date)
+        }.sorted { $0.1 < $1.1 }.map { $0.0 }
     }
 
     func saveLayout() async {
+        await saveLayoutWithName(nil)
+    }
+    
+    func replaceLayout(name: String) async {
+        await saveLayoutWithName(name)
+    }
+    
+    private func saveLayoutWithName(_ layoutName: String?) async {
         // Request screen recording permission if not granted
         if !CGPreflightScreenCaptureAccess() {
             CGRequestScreenCaptureAccess()
@@ -95,11 +123,33 @@ class LayoutManager: ObservableObject {
         }
 
         var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
-        let name = "Layout \(savedLayouts.count + 1)"
-        if let data = try? JSONSerialization.data(withJSONObject: layoutData) {
-            let layoutDict: NSDictionary = ["data": data, "date": Date()]
+        
+        let name: String
+        if let layoutName = layoutName {
+            // Replace existing layout
+            name = layoutName
+            // Preserve existing shortcut and favorite status
+            if let existingLayout = savedLayouts[layoutName] as? [String: Any] {
+                let layoutDict: NSDictionary = [
+                    "data": try! JSONSerialization.data(withJSONObject: layoutData),
+                    "date": Date(),
+                    "shortcut": existingLayout["shortcut"] ?? NSNull(),
+                    "favorite": existingLayout["favorite"] ?? false
+                ]
+                savedLayouts[name] = layoutDict
+            } else {
+                let layoutDict: NSDictionary = ["data": try! JSONSerialization.data(withJSONObject: layoutData), "date": Date()]
+                savedLayouts[name] = layoutDict
+            }
+        } else {
+            // Create new layout
+            name = "Layout \(savedLayouts.count + 1)"
+            let layoutDict: NSDictionary = ["data": try! JSONSerialization.data(withJSONObject: layoutData), "date": Date()]
             savedLayouts[name] = layoutDict
-            UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+        }
+        
+        UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+        DispatchQueue.main.async {
             self.layouts = savedLayouts
         }
     }
@@ -112,7 +162,9 @@ class LayoutManager: ObservableObject {
             var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
             savedLayouts[name] = newDict
             UserDefaults.standard.set(savedLayouts, forKey: "layouts")
-            self.layouts = savedLayouts
+            DispatchQueue.main.async {
+                self.layouts = savedLayouts
+            }
         }
     }
 
@@ -220,6 +272,8 @@ class LayoutManager: ObservableObject {
         var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
         savedLayouts.removeValue(forKey: name)
         UserDefaults.standard.set(savedLayouts, forKey: "layouts")
-        self.layouts = savedLayouts
+        DispatchQueue.main.async {
+            self.layouts = savedLayouts
+        }
     }
 }

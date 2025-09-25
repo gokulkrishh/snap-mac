@@ -230,7 +230,7 @@ struct SettingsView: View {
                         .font(.headline)
                     Picker("Select Layout", selection: $selectedLayout) {
                         Text("None").tag(String?.none)
-                        ForEach(manager.layouts.keys.sorted(), id: \.self) { name in
+                        ForEach(manager.getSortedLayoutNames(), id: \.self) { name in
                             Text(name).tag(name as String?)
                         }
                     }
@@ -241,6 +241,9 @@ struct SettingsView: View {
                             if let selected = selectedLayout {
                                 Button("Load Layout") {
                                     Task { await manager.loadLayout(name: selected) }
+                                }
+                                Button("Replace Layout") {
+                                    Task { await manager.replaceLayout(name: selected) }
                                 }
                                 Button("Edit Layout") {
                                     openEditWindow(for: selected)

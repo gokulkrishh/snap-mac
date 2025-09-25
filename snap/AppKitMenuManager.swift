@@ -331,11 +331,18 @@ class AppKitMenuManager: ObservableObject {
     @objc private func loadLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
         Task { await layoutManager.loadLayout(name: layoutName) }
+        // Menu closes automatically for load actions
     }
     
     @objc private func replaceLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
-        Task { await layoutManager.replaceLayout(name: layoutName) }
+        Task { 
+            await layoutManager.replaceLayout(name: layoutName)
+            // Keep menu open by reassigning it to statusItem
+            DispatchQueue.main.async {
+                self.statusItem?.menu = self.menu
+            }
+        }
     }
     
     @objc private func renameLayout(_ sender: NSMenuItem) {
@@ -358,6 +365,10 @@ class AppKitMenuManager: ObservableObject {
             let newName = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if !newName.isEmpty && newName != oldName {
                 layoutManager.renameLayout(from: oldName, to: newName)
+                // Keep menu open by reassigning it to statusItem
+                DispatchQueue.main.async {
+                    self.statusItem?.menu = self.menu
+                }
             }
         }
     }
@@ -466,6 +477,10 @@ class AppKitMenuManager: ObservableObject {
         layoutManager.setShortcut(for: layoutName, shortcut: shortcut)
         currentShortcutWindow?.close()
         clearShortcutSession()
+        // Keep menu open by reassigning it to statusItem
+        DispatchQueue.main.async {
+            self.statusItem?.menu = self.menu
+        }
     }
     
     private func clearShortcutSession() {
@@ -482,6 +497,10 @@ class AppKitMenuManager: ObservableObject {
     @objc private func deleteLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
         layoutManager.deleteLayout(name: layoutName)
+        // Keep menu open by reassigning it to statusItem
+        DispatchQueue.main.async {
+            self.statusItem?.menu = self.menu
+        }
     }
     
     
@@ -503,6 +522,10 @@ class AppKitMenuManager: ObservableObject {
         }
         
         refreshMenu()
+        // Keep menu open by reassigning it to statusItem
+        DispatchQueue.main.async {
+            self.statusItem?.menu = self.menu
+        }
     }
     
     @objc private func toggleApplyToAllMonitors() {
@@ -510,6 +533,10 @@ class AppKitMenuManager: ObservableObject {
         let newValue = !currentValue
         UserDefaults.standard.set(newValue, forKey: "applySameToAllMonitors")
         refreshMenu()
+        // Keep menu open by reassigning it to statusItem
+        DispatchQueue.main.async {
+            self.statusItem?.menu = self.menu
+        }
     }
     
     @objc private func toggleCheckUpdates() {
@@ -517,6 +544,10 @@ class AppKitMenuManager: ObservableObject {
         let newValue = !currentValue
         UserDefaults.standard.set(newValue, forKey: "checkUpdates")
         refreshMenu()
+        // Keep menu open by reassigning it to statusItem
+        DispatchQueue.main.async {
+            self.statusItem?.menu = self.menu
+        }
     }
     
     @objc private func deleteAllLayouts() {
@@ -524,6 +555,10 @@ class AppKitMenuManager: ObservableObject {
         layoutManager.layouts.removeAll()
         UserDefaults.standard.removeObject(forKey: "layouts")
         refreshMenu()
+        // Keep menu open by reassigning it to statusItem
+        DispatchQueue.main.async {
+            self.statusItem?.menu = self.menu
+        }
     }
     
     @objc private func quitApp() {

@@ -68,6 +68,11 @@ class AppKitMenuManager: ObservableObject {
         }
         
         if !allLayouts.isEmpty {
+            // Add "Saved layouts" header
+            let savedLayoutsHeader = NSMenuItem(title: "Saved layouts", action: nil, keyEquivalent: "")
+            savedLayoutsHeader.isEnabled = false
+            menu?.addItem(savedLayoutsHeader)
+            
             for (name, _) in allLayouts {
                 addLayoutMenuItem(name: name, to: menu!)
             }
@@ -311,7 +316,13 @@ class AppKitMenuManager: ObservableObject {
     // MARK: - Actions
     
     @objc private func saveLayout() {
-        Task { await layoutManager.saveLayout() }
+        Task { 
+            await layoutManager.saveLayout()
+            // Refresh menu to show the new layout
+            DispatchQueue.main.async {
+                self.refreshMenu()
+            }
+        }
     }
     
     @objc private func loadLayout(_ sender: NSMenuItem) {

@@ -60,22 +60,6 @@ class AppKitMenuManager: ObservableObject {
         menu = NSMenu()
         menu?.autoenablesItems = false
         
-        // Favorites section
-        let favorites = layouts.filter { ($0.value["favorite"] as? Bool) == true }
-            .sorted { ($0.value["date"] as? Date ?? Date.distantPast) < ($1.value["date"] as? Date ?? Date.distantPast) }
-        
-        if !favorites.isEmpty {
-            let favoritesHeader = NSMenuItem(title: "Favourites", action: nil, keyEquivalent: "")
-            favoritesHeader.isEnabled = false
-            menu?.addItem(favoritesHeader)
-            
-            for (name, _) in favorites {
-                addLayoutMenuItem(name: name, to: menu!)
-            }
-            
-            menu?.addItem(NSMenuItem.separator())
-        }
-        
         // Save Layout
         let saveItem = NSMenuItem(title: "Save Layout", action: #selector(saveLayout), keyEquivalent: "")
         saveItem.target = self

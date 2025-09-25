@@ -13,9 +13,8 @@ struct SnapApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
-        Settings {
-            EmptyView()
-        }
+        // No scenes needed - this is a menu bar app
+        // All functionality is handled by AppKitMenuManager
     }
 }
 

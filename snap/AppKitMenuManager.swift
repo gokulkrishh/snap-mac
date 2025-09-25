@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import ServiceManagement
 
 class AppKitMenuManager: ObservableObject {
     @Published var layouts: [String: NSDictionary] = [:]
@@ -103,9 +104,43 @@ class AppKitMenuManager: ObservableObject {
         
         menu?.addItem(NSMenuItem.separator())
         
-        // Settings
-        let settingsItem = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: "")
-        settingsItem.target = self
+        // Settings submenu
+        let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+        let settingsMenu = NSMenu()
+        
+        // Launch at Login
+        let launchAtLogin = UserDefaults.standard.bool(forKey: "launchAtLogin")
+        let launchItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        launchItem.target = self
+        launchItem.state = launchAtLogin ? .on : .off
+        settingsMenu.addItem(launchItem)
+        
+        // Apply to All Monitors
+        let applyToAllMonitors = UserDefaults.standard.bool(forKey: "applySameToAllMonitors")
+        let monitorsItem = NSMenuItem(title: "Apply to All Monitors", action: #selector(toggleApplyToAllMonitors), keyEquivalent: "")
+        monitorsItem.target = self
+        monitorsItem.state = applyToAllMonitors ? .on : .off
+        settingsMenu.addItem(monitorsItem)
+        
+        // Check for Updates
+        let checkUpdates = UserDefaults.standard.bool(forKey: "checkUpdates")
+        let updatesItem = NSMenuItem(title: "Check for Updates", action: #selector(toggleCheckUpdates), keyEquivalent: "")
+        updatesItem.target = self
+        updatesItem.state = checkUpdates ? .on : .off
+        settingsMenu.addItem(updatesItem)
+        
+        settingsMenu.addItem(NSMenuItem.separator())
+        
+        // Delete All Layouts
+        let deleteAllItem = NSMenuItem(title: "Delete All Layouts", action: #selector(deleteAllLayouts), keyEquivalent: "")
+        deleteAllItem.target = self
+        deleteAllItem.attributedTitle = NSAttributedString(
+            string: "Delete All Layouts",
+            attributes: [.foregroundColor: NSColor.systemRed]
+        )
+        settingsMenu.addItem(deleteAllItem)
+        
+        settingsItem.submenu = settingsMenu
         menu?.addItem(settingsItem)
         
         // Quit
@@ -318,16 +353,46 @@ class AppKitMenuManager: ObservableObject {
         layoutManager.deleteLayout(name: layoutName)
     }
     
-    @objc private func openSettings() {
-        // Open settings window
-        let settingsView = SettingsView(manager: layoutManager)
-        let hostingController = NSHostingController(rootView: settingsView)
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Snap Settings"
-        window.setContentSize(NSSize(width: 400, height: 500))
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+    
+    @objc private func toggleLaunchAtLogin() {
+        let currentValue = UserDefaults.standard.bool(forKey: "launchAtLogin")
+        let newValue = !currentValue
+        UserDefaults.standard.set(newValue, forKey: "launchAtLogin")
+        
+        // Update login item
+        let service = SMAppService.loginItem(identifier: "gokulkrishh.snap")
+        do {
+            if newValue {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            print("Failed to update login item: \(error)")
+        }
+        
+        refreshMenu()
+    }
+    
+    @objc private func toggleApplyToAllMonitors() {
+        let currentValue = UserDefaults.standard.bool(forKey: "applySameToAllMonitors")
+        let newValue = !currentValue
+        UserDefaults.standard.set(newValue, forKey: "applySameToAllMonitors")
+        refreshMenu()
+    }
+    
+    @objc private func toggleCheckUpdates() {
+        let currentValue = UserDefaults.standard.bool(forKey: "checkUpdates")
+        let newValue = !currentValue
+        UserDefaults.standard.set(newValue, forKey: "checkUpdates")
+        refreshMenu()
+    }
+    
+    @objc private func deleteAllLayouts() {
+        // Clear all layouts
+        layoutManager.layouts.removeAll()
+        UserDefaults.standard.removeObject(forKey: "layouts")
+        refreshMenu()
     }
     
     @objc private func quitApp() {

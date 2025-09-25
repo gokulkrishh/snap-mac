@@ -166,6 +166,13 @@ class AppKitMenuManager: ObservableObject {
         replaceItem.representedObject = name
         submenu.addItem(replaceItem)
         
+        let renameItem = NSMenuItem(title: "Rename Layout", action: #selector(renameLayout(_:)), keyEquivalent: "")
+        renameItem.target = self
+        renameItem.representedObject = name
+        submenu.addItem(renameItem)
+        
+        submenu.addItem(NSMenuItem.separator())
+        
         let favorite = layouts[name]?["favorite"] as? Bool ?? false
         let favoriteItem = NSMenuItem(
             title: favorite ? "Remove from Favourites" : "Add to Favourites",
@@ -341,6 +348,30 @@ class AppKitMenuManager: ObservableObject {
     @objc private func replaceLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
         Task { await layoutManager.replaceLayout(name: layoutName) }
+    }
+    
+    @objc private func renameLayout(_ sender: NSMenuItem) {
+        guard let oldName = sender.representedObject as? String else { return }
+        
+        // Show input dialog for new name
+        let alert = NSAlert()
+        alert.messageText = "Rename Layout"
+        alert.informativeText = "Enter new name for '\(oldName)':"
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        
+        let inputField = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        inputField.stringValue = oldName
+        inputField.placeholderString = "Layout name"
+        alert.accessoryView = inputField
+        
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let newName = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !newName.isEmpty && newName != oldName {
+                layoutManager.renameLayout(from: oldName, to: newName)
+            }
+        }
     }
     
     @objc private func toggleFavorite(_ sender: NSMenuItem) {

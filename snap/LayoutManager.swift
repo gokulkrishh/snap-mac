@@ -276,4 +276,28 @@ class LayoutManager: ObservableObject {
             self.layouts = savedLayouts
         }
     }
+    
+    func renameLayout(from oldName: String, to newName: String) {
+        var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+        
+        // Check if new name already exists
+        if savedLayouts[newName] != nil {
+            return // Don't rename if new name already exists
+        }
+        
+        // Get the old layout data
+        if let oldLayout = savedLayouts[oldName] {
+            // Remove old layout and add with new name
+            savedLayouts.removeValue(forKey: oldName)
+            savedLayouts[newName] = oldLayout
+            
+            // Save to UserDefaults
+            UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            
+            // Update published property on main thread
+            DispatchQueue.main.async {
+                self.layouts = savedLayouts
+            }
+        }
+    }
 }

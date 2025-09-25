@@ -171,6 +171,11 @@ class AppKitMenuManager: ObservableObject {
         renameItem.representedObject = name
         submenu.addItem(renameItem)
         
+        let recordShortcutItem = NSMenuItem(title: "Record Shortcut", action: #selector(recordShortcut(_:)), keyEquivalent: "")
+        recordShortcutItem.target = self
+        recordShortcutItem.representedObject = name
+        submenu.addItem(recordShortcutItem)
+        
         submenu.addItem(NSMenuItem.separator())
         
         let favorite = layouts[name]?["favorite"] as? Bool ?? false
@@ -228,10 +233,8 @@ class AppKitMenuManager: ObservableObject {
     
     private func getShortcutString(for layoutName: String) -> String {
         if let layoutDict = layouts[layoutName],
-           let shortcut = layoutDict["shortcut"] as? [String: Any],
-           let keyCode = shortcut["keyCode"] as? Int,
-           let modifiers = shortcut["modifiers"] as? Int {
-            return shortcutDescription(keyCode: keyCode, modifiers: modifiers)
+           let shortcut = layoutDict["shortcut"] as? String {
+            return shortcut
         }
         return ""
     }
@@ -374,6 +377,123 @@ class AppKitMenuManager: ObservableObject {
         }
     }
     
+    @objc private func recordShortcut(_ sender: NSMenuItem) {
+        guard let layoutName = sender.representedObject as? String else { return }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Create a simple window for key capture
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 350, height: 150),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "Record Shortcut for '\(layoutName)'"
+            window.center()
+            window.level = .floating
+            window.isReleasedWhenClosed = false
+            
+            // Create main view
+            let mainView = NSView(frame: window.contentView!.bounds)
+            window.contentView = mainView
+            
+            // Instruction label
+            let instructionLabel = NSTextField(labelWithString: "Press the key combination:")
+            instructionLabel.frame = NSRect(x: 20, y: 100, width: 310, height: 20)
+            instructionLabel.font = NSFont.systemFont(ofSize: 14)
+            instructionLabel.alignment = .center
+            mainView.addSubview(instructionLabel)
+            
+            // Shortcut display field
+            let shortcutField = NSTextField(frame: NSRect(x: 20, y: 50, width: 310, height: 30))
+            shortcutField.stringValue = self.getShortcutString(for: layoutName)
+            shortcutField.placeholderString = "Press keys..."
+            shortcutField.isEditable = false
+            shortcutField.font = NSFont.monospacedSystemFont(ofSize: 16, weight: .medium)
+            shortcutField.alignment = .center
+            shortcutField.backgroundColor = NSColor.controlBackgroundColor
+            shortcutField.isBordered = true
+            mainView.addSubview(shortcutField)
+            
+            // Buttons with proper target/action setup
+            let clearButton = NSButton(title: "Clear", target: self, action: #selector(clearShortcutAction))
+            clearButton.frame = NSRect(x: 20, y: 10, width: 80, height: 30)
+            clearButton.bezelStyle = .rounded
+            
+            let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelShortcutAction))
+            cancelButton.frame = NSRect(x: 120, y: 10, width: 80, height: 30)
+            cancelButton.bezelStyle = .rounded
+            
+            let doneButton = NSButton(title: "Done", target: self, action: #selector(doneShortcutAction))
+            doneButton.frame = NSRect(x: 220, y: 10, width: 80, height: 30)
+            doneButton.bezelStyle = .rounded
+            doneButton.keyEquivalent = "\r"
+            
+            
+            // Store references
+            self.currentShortcutWindow = window
+            self.currentShortcutLayoutName = layoutName
+            self.currentShortcutField = shortcutField
+            
+            // Add buttons first
+            mainView.addSubview(clearButton)
+            mainView.addSubview(cancelButton)
+            mainView.addSubview(doneButton)
+            
+            // Create invisible key capture view that doesn't interfere with buttons
+            let keyCaptureView = KeyCaptureView(frame: NSRect(x: 0, y: 40, width: 350, height: 110)) // Only cover top area
+            keyCaptureView.onKeyCaptured = { [weak shortcutField] shortcut in
+                DispatchQueue.main.async {
+                    shortcutField?.stringValue = shortcut
+                }
+            }
+            mainView.addSubview(keyCaptureView)
+            
+            // Show window and start capturing
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                keyCaptureView.startCapturing()
+            }
+        }
+    }
+    
+    @objc private func clearShortcutAction(_ sender: Any) {
+        guard let layoutName = currentShortcutLayoutName else { return }
+        layoutManager.setShortcut(for: layoutName, shortcut: nil)
+        currentShortcutWindow?.close()
+        clearShortcutSession()
+    }
+    
+    @objc private func cancelShortcutAction(_ sender: Any) {
+        currentShortcutWindow?.close()
+        clearShortcutSession()
+    }
+    
+    @objc private func doneShortcutAction(_ sender: Any) {
+        guard let layoutName = currentShortcutLayoutName,
+              let shortcutField = currentShortcutField else { return }
+        
+        let shortcut = shortcutField.stringValue.isEmpty ? nil : shortcutField.stringValue
+        layoutManager.setShortcut(for: layoutName, shortcut: shortcut)
+        currentShortcutWindow?.close()
+        clearShortcutSession()
+    }
+    
+    private func clearShortcutSession() {
+        currentShortcutWindow = nil
+        currentShortcutLayoutName = nil
+        currentShortcutField = nil
+    }
+    
+    // Store current shortcut recording session
+    private weak var currentShortcutWindow: NSWindow?
+    private var currentShortcutLayoutName: String?
+    private weak var currentShortcutField: NSTextField?
+    
     @objc private func toggleFavorite(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }
         layoutManager.toggleFavorite(name: layoutName)
@@ -437,5 +557,130 @@ class AppKitMenuManager: ObservableObject {
         if let statusItem = statusItem {
             statusItem.menu = menu
         }
+    }
+}
+
+// MARK: - Key Capture View
+class KeyCaptureView: NSView {
+    var onKeyCaptured: ((String) -> Void)?
+    private var isCapturing = false
+    
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        setupKeyCapture()
+    }
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupKeyCapture()
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupKeyCapture()
+    }
+    
+    private func setupKeyCapture() {
+        // The view will be made first responder when startCapturing() is called
+    }
+    
+    override var acceptsFirstResponder: Bool {
+        return true
+    }
+    
+    override func keyDown(with event: NSEvent) {
+        guard isCapturing else { return }
+        
+        let modifiers = event.modifierFlags
+        let keyCode = event.keyCode
+        
+        // Build shortcut string
+        var shortcutParts: [String] = []
+        
+        if modifiers.contains(.command) { shortcutParts.append("⌘") }
+        if modifiers.contains(.option) { shortcutParts.append("⌥") }
+        if modifiers.contains(.control) { shortcutParts.append("⌃") }
+        if modifiers.contains(.shift) { shortcutParts.append("⇧") }
+        
+        // Add the key
+        if let key = keyCodeToString(keyCode) {
+            shortcutParts.append(key)
+        }
+        
+        let shortcut = shortcutParts.joined(separator: "")
+        onKeyCaptured?(shortcut)
+    }
+    
+    private func keyCodeToString(_ keyCode: UInt16) -> String? {
+        switch keyCode {
+        case 0: return "A"
+        case 1: return "S"
+        case 2: return "D"
+        case 3: return "F"
+        case 4: return "H"
+        case 5: return "G"
+        case 6: return "Z"
+        case 7: return "X"
+        case 8: return "C"
+        case 9: return "V"
+        case 11: return "B"
+        case 12: return "Q"
+        case 13: return "W"
+        case 14: return "E"
+        case 15: return "R"
+        case 16: return "Y"
+        case 17: return "T"
+        case 18: return "1"
+        case 19: return "2"
+        case 20: return "3"
+        case 21: return "4"
+        case 22: return "6"
+        case 23: return "5"
+        case 24: return "="
+        case 25: return "9"
+        case 26: return "7"
+        case 27: return "-"
+        case 28: return "8"
+        case 29: return "0"
+        case 30: return "]"
+        case 31: return "O"
+        case 32: return "U"
+        case 33: return "["
+        case 34: return "I"
+        case 35: return "P"
+        case 36: return "Return"
+        case 37: return "L"
+        case 38: return "J"
+        case 39: return "'"
+        case 40: return "K"
+        case 41: return ";"
+        case 42: return "\\"
+        case 43: return ","
+        case 44: return "/"
+        case 45: return "N"
+        case 46: return "M"
+        case 47: return "."
+        case 48: return "Tab"
+        case 49: return "Space"
+        case 50: return "`"
+        case 51: return "Delete"
+        case 53: return "Escape"
+        case 123: return "←"
+        case 124: return "→"
+        case 125: return "↓"
+        case 126: return "↑"
+        default: return nil
+        }
+    }
+    
+    func startCapturing() {
+        isCapturing = true
+        DispatchQueue.main.async {
+            self.window?.makeFirstResponder(self)
+        }
+    }
+    
+    func stopCapturing() {
+        isCapturing = false
     }
 }

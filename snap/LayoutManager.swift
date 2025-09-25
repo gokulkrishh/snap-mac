@@ -300,4 +300,25 @@ class LayoutManager: ObservableObject {
             }
         }
     }
+    
+    func setShortcut(for layoutName: String, shortcut: String?) {
+        var savedLayouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+        
+        if var layoutDict = savedLayouts[layoutName] as? [String: Any] {
+            if let shortcut = shortcut {
+                layoutDict["shortcut"] = shortcut
+            } else {
+                layoutDict.removeValue(forKey: "shortcut")
+            }
+            savedLayouts[layoutName] = layoutDict as NSDictionary
+            
+            // Save to UserDefaults
+            UserDefaults.standard.set(savedLayouts, forKey: "layouts")
+            
+            // Update published property on main thread
+            DispatchQueue.main.async {
+                self.layouts = savedLayouts
+            }
+        }
+    }
 }

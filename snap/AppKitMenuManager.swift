@@ -60,33 +60,24 @@ class AppKitMenuManager: ObservableObject {
         menu = NSMenu()
         menu?.autoenablesItems = false
         
-        // Save Layout
-        let saveItem = NSMenuItem(title: "Save layout", action: #selector(saveLayout), keyEquivalent: "")
-        saveItem.target = self
-        menu?.addItem(saveItem)
-        
-        // Saved Layouts submenu
-        let savedLayoutsItem = NSMenuItem(title: "Saved layouts", action: nil, keyEquivalent: "")
-        let savedLayoutsMenu = NSMenu()
-        
+        // Show saved layouts directly in main menu
         let allLayouts = layouts.sorted {
             let date1 = $0.value["date"] as? Date ?? Date.distantPast
             let date2 = $1.value["date"] as? Date ?? Date.distantPast
             return date1 < date2
         }
         
-        if allLayouts.isEmpty {
-            let emptyItem = NSMenuItem(title: "No saved layouts", action: nil, keyEquivalent: "")
-            emptyItem.isEnabled = false
-            savedLayoutsMenu.addItem(emptyItem)
-        } else {
+        if !allLayouts.isEmpty {
             for (name, _) in allLayouts {
-                addLayoutMenuItem(name: name, to: savedLayoutsMenu)
+                addLayoutMenuItem(name: name, to: menu!)
             }
+            menu?.addItem(NSMenuItem.separator())
         }
         
-        savedLayoutsItem.submenu = savedLayoutsMenu
-        menu?.addItem(savedLayoutsItem)
+        // Save Layout
+        let saveItem = NSMenuItem(title: "Save layout", action: #selector(saveLayout), keyEquivalent: "")
+        saveItem.target = self
+        menu?.addItem(saveItem)
         
         menu?.addItem(NSMenuItem.separator())
         

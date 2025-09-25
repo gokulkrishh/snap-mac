@@ -164,7 +164,10 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         
         submenu.addItem(NSMenuItem.separator())
         
-        let recordShortcutItem = NSMenuItem(title: "Record shortcut", action: #selector(recordShortcut(_:)), keyEquivalent: "")
+        // Record/Update shortcut item - show different text based on whether shortcut exists
+        let hasShortcut = !getShortcutString(for: name).isEmpty
+        let shortcutItemTitle = hasShortcut ? "Update shortcut" : "Record shortcut"
+        let recordShortcutItem = NSMenuItem(title: shortcutItemTitle, action: #selector(recordShortcut(_:)), keyEquivalent: "")
         recordShortcutItem.target = self
         recordShortcutItem.representedObject = name
         submenu.addItem(recordShortcutItem)

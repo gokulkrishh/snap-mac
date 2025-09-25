@@ -20,6 +20,7 @@ These are practices (some new, some evergreen) that I consider especially import
 • Use Swift + SwiftUI where feasible, but be ready to drop into AppKit or custom views when necessary (since not all UI/custom behavior is mature in SwiftUI yet).
 • Handle platform differences cleanly: if you plan to support iPadOS ↔ macOS, minimize #if os(...) scatter; design abstractions or use shared modules.
 • Maintain backward compatibility: macOS 26 won't be the only OS version your users run. Use @available / version checks, avoid deprecated APIs.
+• Always use the latest macOS 26 APIs and verify any API before using to ensure compatibility and avoid deprecation warnings.
 
 ## Security & Privacy
 • Privacy-by-design: request permissions only when needed; explain why in UI. Transparent data policy.

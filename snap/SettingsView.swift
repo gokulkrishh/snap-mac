@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 struct SettingsView: View {
     @ObservedObject var manager: LayoutManager
@@ -6,6 +7,37 @@ struct SettingsView: View {
     @State private var recordingShortcut: Bool = false
     @State private var currentShortcut: [String: Any]?
     @State private var refreshTrigger = false
+
+    // New settings
+    @State private var launchAtLogin: Bool = UserDefaults.standard.bool(forKey: "launchAtLogin")
+    @State private var applySameToAllMonitors: Bool = UserDefaults.standard.bool(forKey: "applySameToAllMonitors")
+    @State private var checkUpdates: Bool = UserDefaults.standard.bool(forKey: "checkUpdates")
+
+    private func updateLaunchAtLogin(_ enabled: Bool) {
+        launchAtLogin = enabled
+        UserDefaults.standard.set(enabled, forKey: "launchAtLogin")
+
+        let service = SMAppService.loginItem(identifier: "gokulkrishh.snap")
+        do {
+            if enabled {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            print("Failed to update login item: \(error)")
+        }
+    }
+
+    private func updateApplySameToAllMonitors(_ enabled: Bool) {
+        applySameToAllMonitors = enabled
+        UserDefaults.standard.set(enabled, forKey: "applySameToAllMonitors")
+    }
+
+    private func updateCheckUpdates(_ enabled: Bool) {
+        checkUpdates = enabled
+        UserDefaults.standard.set(enabled, forKey: "checkUpdates")
+    }
 
     private func openEditWindow(for layoutName: String) {
         if let layoutDict = manager.layouts[layoutName],
@@ -169,41 +201,75 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Snap Settings")
-                .font(.title)
-                .padding(.top)
-
-            // Layout Management
+        ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Saved Layouts")
-                    .font(.headline)
+                Text("Snap Settings")
+                    .font(.title)
+                    .padding(.top)
 
-                List(manager.layouts.keys.sorted(), id: \.self, selection: $selectedLayout) { name in
-                    Text(name)
+                // General
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("General")
+                        .font(.headline)
+                    Toggle("Launch at Login", isOn: $launchAtLogin)
+                        .onChange(of: launchAtLogin) { updateLaunchAtLogin($1) }
                 }
-                .frame(height: 150)
 
-                HStack {
-                    if let selected = selectedLayout {
-                        Button("Edit Layout") {
-                            openEditWindow(for: selected)
-                        }
-                        Button("Delete Layout") {
-                            manager.deleteLayout(name: selected)
-                            selectedLayout = nil
+                // Multi-Monitor
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Multi-Monitor")
+                        .font(.headline)
+                    Toggle("Apply Same Layout to All Monitors", isOn: $applySameToAllMonitors)
+                        .onChange(of: applySameToAllMonitors) { updateApplySameToAllMonitors($1) }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                // Layout Management
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Saved Layouts")
+                        .font(.headline)
+                    Picker("Select Layout", selection: $selectedLayout) {
+                        Text("None").tag(String?.none)
+                        ForEach(manager.layouts.keys.sorted(), id: \.self) { name in
+                            Text(name).tag(name as String?)
                         }
                     }
-                    Spacer()
-                    if let selected = selectedLayout {
-                        VStack(alignment: .trailing) {
-                            Text("Shortcut: \(getShortcutString(for: selected))")
-                                .font(.caption)
-                            Button("Record Shortcut") {
-                                startRecordingShortcut(for: selected)
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                        HStack {
+                            if let selected = selectedLayout {
+                                Button("Load Layout") {
+                                    Task { await manager.loadLayout(name: selected) }
+                                }
+                                Button("Edit Layout") {
+                                    openEditWindow(for: selected)
+                                }
+                                Button("Delete Layout") {
+                                    manager.deleteLayout(name: selected)
+                                    selectedLayout = nil
+                                }
+                                Spacer()
+                                Text("Shortcut: \(getShortcutString(for: selected))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Button("Record Shortcut") {
+                                    startRecordingShortcut(for: selected)
+                                }
+                            } else {
+                                Spacer()
                             }
                         }
-                    }
+                }
+
+                // Layout Deletion
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Danger Zone")
+                        .font(.headline)
+                        .foregroundColor(.red)
+                    Text("These actions cannot be undone.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                     Button("Delete All Layouts") {
                         manager.layouts.removeAll()
                         UserDefaults.standard.removeObject(forKey: "layouts")
@@ -211,21 +277,12 @@ struct SettingsView: View {
                     }
                     .foregroundColor(.red)
                 }
+
             }
-
-            // Keyboard Shortcuts (placeholder)
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Keyboard Shortcuts")
-                    .font(.headline)
-
-                Text("Coming soon: Record shortcuts for Save/Load")
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
         }
-        .frame(width: 400, height: 500)
-        .padding()
+        .frame(width: 450, height: 600)
     }
 }
 
@@ -423,8 +480,6 @@ struct EditLayoutView: View {
                 ForEach(apps.indices, id: \.self) { index in
                     HStack {
                         Text(apps[index]["owner"] as? String ?? "")
-                        Text("-")
-                        Text(apps[index]["name"] as? String ?? "")
                         Spacer()
                         Button("Remove") {
                             apps.remove(at: index)

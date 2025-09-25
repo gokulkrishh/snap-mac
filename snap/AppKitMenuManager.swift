@@ -70,9 +70,6 @@ class AppKitMenuManager: ObservableObject {
         let savedLayoutsMenu = NSMenu()
         
         let allLayouts = layouts.sorted {
-            let fav1 = $0.value["favorite"] as? Bool ?? false
-            let fav2 = $1.value["favorite"] as? Bool ?? false
-            if fav1 != fav2 { return fav1 && !fav2 }
             let date1 = $0.value["date"] as? Date ?? Date.distantPast
             let date2 = $1.value["date"] as? Date ?? Date.distantPast
             return date1 < date2
@@ -164,18 +161,6 @@ class AppKitMenuManager: ObservableObject {
         recordShortcutItem.target = self
         recordShortcutItem.representedObject = name
         submenu.addItem(recordShortcutItem)
-        
-        submenu.addItem(NSMenuItem.separator())
-        
-        let favorite = layouts[name]?["favorite"] as? Bool ?? false
-        let favoriteItem = NSMenuItem(
-            title: favorite ? "Remove from Favourites" : "Add to Favourites",
-            action: #selector(toggleFavorite(_:)),
-            keyEquivalent: ""
-        )
-        favoriteItem.target = self
-        favoriteItem.representedObject = name
-        submenu.addItem(favoriteItem)
         
         submenu.addItem(NSMenuItem.separator())
         
@@ -482,11 +467,6 @@ class AppKitMenuManager: ObservableObject {
     private weak var currentShortcutWindow: NSWindow?
     private var currentShortcutLayoutName: String?
     private weak var currentShortcutField: NSTextField?
-    
-    @objc private func toggleFavorite(_ sender: NSMenuItem) {
-        guard let layoutName = sender.representedObject as? String else { return }
-        layoutManager.toggleFavorite(name: layoutName)
-    }
     
     @objc private func deleteLayout(_ sender: NSMenuItem) {
         guard let layoutName = sender.representedObject as? String else { return }

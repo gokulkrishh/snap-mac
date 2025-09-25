@@ -169,6 +169,10 @@ class AppKitMenuManager: ObservableObject {
         let deleteItem = NSMenuItem(title: "Delete layout", action: #selector(deleteLayout(_:)), keyEquivalent: "")
         deleteItem.target = self
         deleteItem.representedObject = name
+        deleteItem.attributedTitle = NSAttributedString(
+            string: "Delete layout",
+            attributes: [.foregroundColor: NSColor.systemRed]
+        )
         submenu.addItem(deleteItem)
         
         menuItem.submenu = submenu

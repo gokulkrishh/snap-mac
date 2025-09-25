@@ -152,6 +152,8 @@ class AppKitMenuManager: ObservableObject {
         replaceItem.representedObject = name
         submenu.addItem(replaceItem)
         
+        submenu.addItem(NSMenuItem.separator())
+        
         let recordShortcutItem = NSMenuItem(title: "Record Shortcut", action: #selector(recordShortcut(_:)), keyEquivalent: "")
         recordShortcutItem.target = self
         recordShortcutItem.representedObject = name

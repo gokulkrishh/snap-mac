@@ -9,6 +9,9 @@ class AppKitMenuManager: ObservableObject {
     private var menu: NSMenu?
     private let layoutManager = LayoutManager()
     
+    // Global hotkey monitoring
+    private var registeredShortcuts: [String: (layoutName: String, eventMonitor: Any)] = [:]
+    
     init() {
         loadLayouts()
         setupMenuBar()
@@ -17,6 +20,7 @@ class AppKitMenuManager: ObservableObject {
     
     private func loadLayouts() {
         self.layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary] ?? [:]
+        updateGlobalShortcuts()
     }
     
     private func observeLayoutManager() {
@@ -27,6 +31,7 @@ class AppKitMenuManager: ObservableObject {
                 DispatchQueue.main.async {
                     self?.layouts = newLayouts
                     self?.refreshMenu()
+                    self?.updateGlobalShortcuts()
                 }
             }
             .store(in: &cancellables)
@@ -556,6 +561,145 @@ class AppKitMenuManager: ObservableObject {
         // Force menu update by reassigning it
         if let statusItem = statusItem {
             statusItem.menu = menu
+        }
+    }
+    
+    // MARK: - Global Shortcut Management
+    
+    private func updateGlobalShortcuts() {
+        // Unregister all existing shortcuts
+        unregisterAllShortcuts()
+        
+        // Register shortcuts for layouts that have them
+        for (layoutName, layoutDict) in layouts {
+            if let shortcutString = layoutDict["shortcut"] as? String, !shortcutString.isEmpty {
+                registerGlobalShortcut(shortcutString, for: layoutName)
+            }
+        }
+    }
+    
+    private func unregisterAllShortcuts() {
+        for (_, (_, eventMonitor)) in registeredShortcuts {
+            NSEvent.removeMonitor(eventMonitor)
+        }
+        registeredShortcuts.removeAll()
+    }
+    
+    private func registerGlobalShortcut(_ shortcutString: String, for layoutName: String) {
+        guard let (keyCode, modifiers) = parseShortcutString(shortcutString) else { return }
+        
+        let eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Check if the key matches
+            let keyMatches = event.keyCode == keyCode
+            
+            // Check if the relevant modifiers match (ignore caps lock, num lock, etc.)
+            let relevantModifiers: UInt = NSEvent.ModifierFlags.command.rawValue | 
+                                        NSEvent.ModifierFlags.option.rawValue | 
+                                        NSEvent.ModifierFlags.control.rawValue | 
+                                        NSEvent.ModifierFlags.shift.rawValue
+            
+            let actualRelevantModifiers = event.modifierFlags.rawValue & relevantModifiers
+            let expectedRelevantModifiers = modifiers & relevantModifiers
+            
+            let modifiersMatch = actualRelevantModifiers == expectedRelevantModifiers
+            
+            if keyMatches && modifiersMatch {
+                DispatchQueue.main.async {
+                    Task { await self?.layoutManager.loadLayout(name: layoutName) }
+                }
+            }
+        }
+        
+        registeredShortcuts[shortcutString] = (layoutName: layoutName, eventMonitor: eventMonitor as Any)
+    }
+    
+    private func parseShortcutString(_ shortcutString: String) -> (keyCode: UInt16, modifiers: UInt)? {
+        var modifiers: UInt = 0
+        var keyString = shortcutString
+        
+        // Parse modifier flags
+        if shortcutString.contains("⌘") {
+            modifiers |= NSEvent.ModifierFlags.command.rawValue
+            keyString = keyString.replacingOccurrences(of: "⌘", with: "")
+        }
+        if shortcutString.contains("⌥") {
+            modifiers |= NSEvent.ModifierFlags.option.rawValue
+            keyString = keyString.replacingOccurrences(of: "⌥", with: "")
+        }
+        if shortcutString.contains("⌃") {
+            modifiers |= NSEvent.ModifierFlags.control.rawValue
+            keyString = keyString.replacingOccurrences(of: "⌃", with: "")
+        }
+        if shortcutString.contains("⇧") {
+            modifiers |= NSEvent.ModifierFlags.shift.rawValue
+            keyString = keyString.replacingOccurrences(of: "⇧", with: "")
+        }
+        
+        // Parse key code
+        guard let keyCode = stringToKeyCode(keyString) else { return nil }
+        
+        return (keyCode: keyCode, modifiers: modifiers)
+    }
+    
+    private func stringToKeyCode(_ keyString: String) -> UInt16? {
+        switch keyString {
+        case "A": return 0
+        case "S": return 1
+        case "D": return 2
+        case "F": return 3
+        case "H": return 4
+        case "G": return 5
+        case "Z": return 6
+        case "X": return 7
+        case "C": return 8
+        case "V": return 9
+        case "B": return 11
+        case "Q": return 12
+        case "W": return 13
+        case "E": return 14
+        case "R": return 15
+        case "Y": return 16
+        case "T": return 17
+        case "1": return 18
+        case "2": return 19
+        case "3": return 20
+        case "4": return 21
+        case "6": return 22
+        case "5": return 23
+        case "=": return 24
+        case "9": return 25
+        case "7": return 26
+        case "-": return 27
+        case "8": return 28
+        case "0": return 29
+        case "]": return 30
+        case "O": return 31
+        case "U": return 32
+        case "[": return 33
+        case "I": return 34
+        case "P": return 35
+        case "Return": return 36
+        case "L": return 37
+        case "J": return 38
+        case "'": return 39
+        case "K": return 40
+        case ";": return 41
+        case "\\": return 42
+        case ",": return 43
+        case "/": return 44
+        case "N": return 45
+        case "M": return 46
+        case ".": return 47
+        case "Tab": return 48
+        case "Space": return 49
+        case "`": return 50
+        case "Delete": return 51
+        case "Escape": return 53
+        case "←": return 123
+        case "→": return 124
+        case "↓": return 125
+        case "↑": return 126
+        default: return nil
         }
     }
 }

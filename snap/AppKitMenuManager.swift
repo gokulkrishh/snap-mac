@@ -152,17 +152,17 @@ class AppKitMenuManager: ObservableObject {
         replaceItem.representedObject = name
         submenu.addItem(replaceItem)
         
-        let renameItem = NSMenuItem(title: "Rename Layout", action: #selector(renameLayout(_:)), keyEquivalent: "")
-        renameItem.target = self
-        renameItem.representedObject = name
-        submenu.addItem(renameItem)
-        
         let recordShortcutItem = NSMenuItem(title: "Record Shortcut", action: #selector(recordShortcut(_:)), keyEquivalent: "")
         recordShortcutItem.target = self
         recordShortcutItem.representedObject = name
         submenu.addItem(recordShortcutItem)
         
         submenu.addItem(NSMenuItem.separator())
+        
+        let renameItem = NSMenuItem(title: "Rename Layout", action: #selector(renameLayout(_:)), keyEquivalent: "")
+        renameItem.target = self
+        renameItem.representedObject = name
+        submenu.addItem(renameItem)
         
         let deleteItem = NSMenuItem(title: "Delete Layout", action: #selector(deleteLayout(_:)), keyEquivalent: "")
         deleteItem.target = self

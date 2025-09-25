@@ -130,22 +130,29 @@ class LayoutManager: ObservableObject {
             name = layoutName
             // Preserve existing shortcut and favorite status
             if let existingLayout = savedLayouts[layoutName] as? [String: Any] {
-                let layoutDict: NSDictionary = [
-                    "data": try! JSONSerialization.data(withJSONObject: layoutData),
+                let data = try! JSONSerialization.data(withJSONObject: layoutData)
+                let dataString = data.base64EncodedString()
+                let shortcutValue = existingLayout["shortcut"] as? String ?? ""
+                let layoutDict: [String: Any] = [
+                    "data": dataString,
                     "date": Date(),
-                    "shortcut": existingLayout["shortcut"] ?? NSNull(),
-                    "favorite": existingLayout["favorite"] ?? false
+                    "shortcut": shortcutValue,
+                    "favorite": existingLayout["favorite"] as? Bool ?? false
                 ]
-                savedLayouts[name] = layoutDict
+                savedLayouts[name] = layoutDict as NSDictionary
             } else {
-                let layoutDict: NSDictionary = ["data": try! JSONSerialization.data(withJSONObject: layoutData), "date": Date()]
-                savedLayouts[name] = layoutDict
+                let data = try! JSONSerialization.data(withJSONObject: layoutData)
+                let dataString = data.base64EncodedString()
+                let layoutDict: [String: Any] = ["data": dataString, "date": Date()]
+                savedLayouts[name] = layoutDict as NSDictionary
             }
         } else {
             // Create new layout
             name = "Layout \(savedLayouts.count + 1)"
-            let layoutDict: NSDictionary = ["data": try! JSONSerialization.data(withJSONObject: layoutData), "date": Date()]
-            savedLayouts[name] = layoutDict
+            let data = try! JSONSerialization.data(withJSONObject: layoutData)
+            let dataString = data.base64EncodedString()
+            let layoutDict: [String: Any] = ["data": dataString, "date": Date()]
+            savedLayouts[name] = layoutDict as NSDictionary
         }
         
         UserDefaults.standard.set(savedLayouts, forKey: "layouts")
@@ -177,9 +184,23 @@ class LayoutManager: ObservableObject {
         }
 
         guard let layouts = UserDefaults.standard.dictionary(forKey: "layouts") as? [String: NSDictionary],
-              let layoutDict = layouts[name],
-              let data = layoutDict["data"] as? Data,
-              let savedLayouts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+              let layoutDict = layouts[name] else {
+            return
+        }
+        
+        var data: Data
+        if let dataString = layoutDict["data"] as? String {
+            // New format: base64 encoded string
+            guard let decodedData = Data(base64Encoded: dataString) else { return }
+            data = decodedData
+        } else if let nsData = layoutDict["data"] as? Data {
+            // Old format: NSData
+            data = nsData
+        } else {
+            return
+        }
+        
+        guard let savedLayouts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return
         }
 

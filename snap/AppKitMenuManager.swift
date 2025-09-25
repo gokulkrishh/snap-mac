@@ -560,7 +560,12 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         UserDefaults.standard.set(newValue, forKey: "launchAtLogin")
         
         // Update login item
-        let service = SMAppService.loginItem(identifier: "gokulkrishh.snap")
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+            print("Failed to get bundle identifier")
+            return
+        }
+        
+        let service = SMAppService.loginItem(identifier: bundleIdentifier)
         do {
             if newValue {
                 try service.register()
@@ -569,6 +574,15 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             }
         } catch {
             print("Failed to update login item: \(error)")
+            // For sandboxed apps, SMAppService may not work
+            // Show user-friendly error message
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "Launch at Login"
+                alert.informativeText = "Unable to manage launch at login setting. This may be due to app sandboxing restrictions. You can manually add this app to your Login Items in System Preferences > Users & Groups > Login Items."
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
         }
         
         refreshMenu()

@@ -207,9 +207,6 @@ struct StyledMenuLabel: View {
     
     var body: some View {
         Text(createStyledText())
-            .onAppear {
-                applyMenuItemStyling()
-            }
     }
     
     private func createStyledText() -> String {
@@ -218,16 +215,6 @@ struct StyledMenuLabel: View {
         } else {
             // Use tab character for proper macOS menu alignment
             return "\(name)\t\(shortcut)"
-        }
-    }
-    
-    private func applyMenuItemStyling() {
-        // This is a workaround to try to apply styling to the underlying NSMenuItem
-        // Unfortunately, SwiftUI Menu labels have very limited styling support
-        DispatchQueue.main.async {
-            // Note: This approach doesn't work reliably
-            // The fundamental issue is that SwiftUI Menu labels don't support rich text
-            // NSWindow doesn't have a menuBar property - that was incorrect
         }
     }
 }

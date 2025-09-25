@@ -398,19 +398,21 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             window.level = .floating
             window.isReleasedWhenClosed = false
             
-            // Create main view
-            let mainView = NSView(frame: window.contentView!.bounds)
+            // Create main view with Auto Layout
+            let mainView = NSView()
+            mainView.translatesAutoresizingMaskIntoConstraints = false
             window.contentView = mainView
             
             // Instruction label
             let instructionLabel = NSTextField(labelWithString: "Press the key combination:")
-            instructionLabel.frame = NSRect(x: 20, y: 100, width: 310, height: 20)
+            instructionLabel.translatesAutoresizingMaskIntoConstraints = false
             instructionLabel.font = NSFont.systemFont(ofSize: 14)
             instructionLabel.alignment = .center
             mainView.addSubview(instructionLabel)
             
             // Shortcut display field
-            let shortcutField = NSTextField(frame: NSRect(x: 20, y: 50, width: 310, height: 30))
+            let shortcutField = NSTextField()
+            shortcutField.translatesAutoresizingMaskIntoConstraints = false
             shortcutField.stringValue = self.getShortcutString(for: layoutName)
             shortcutField.placeholderString = "Press keys..."
             shortcutField.isEditable = false
@@ -422,15 +424,15 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             
             // Buttons with proper target/action setup
             let clearButton = NSButton(title: "Clear", target: self, action: #selector(clearShortcutAction))
-            clearButton.frame = NSRect(x: 20, y: 10, width: 80, height: 30)
+            clearButton.translatesAutoresizingMaskIntoConstraints = false
             clearButton.bezelStyle = .rounded
             
             let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelShortcutAction))
-            cancelButton.frame = NSRect(x: 120, y: 10, width: 80, height: 30)
+            cancelButton.translatesAutoresizingMaskIntoConstraints = false
             cancelButton.bezelStyle = .rounded
             
             let doneButton = NSButton(title: "Done", target: self, action: #selector(doneShortcutAction))
-            doneButton.frame = NSRect(x: 220, y: 10, width: 80, height: 30)
+            doneButton.translatesAutoresizingMaskIntoConstraints = false
             doneButton.bezelStyle = .rounded
             doneButton.keyEquivalent = "\r"
             
@@ -440,19 +442,68 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             self.currentShortcutLayoutName = layoutName
             self.currentShortcutField = shortcutField
             
-            // Add buttons first
+            // Add buttons
             mainView.addSubview(clearButton)
             mainView.addSubview(cancelButton)
             mainView.addSubview(doneButton)
             
+            // Set up Auto Layout constraints
+            NSLayoutConstraint.activate([
+                // Main view constraints
+                mainView.topAnchor.constraint(equalTo: window.contentView!.topAnchor),
+                mainView.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor),
+                mainView.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor),
+                mainView.bottomAnchor.constraint(equalTo: window.contentView!.bottomAnchor),
+                
+                // Instruction label constraints
+                instructionLabel.topAnchor.constraint(equalTo: mainView.topAnchor, constant: 20),
+                instructionLabel.leadingAnchor.constraint(equalTo: mainView.leadingAnchor, constant: 20),
+                instructionLabel.trailingAnchor.constraint(equalTo: mainView.trailingAnchor, constant: -20),
+                instructionLabel.heightAnchor.constraint(equalToConstant: 20),
+                
+                // Shortcut field constraints
+                shortcutField.topAnchor.constraint(equalTo: instructionLabel.bottomAnchor, constant: 20),
+                shortcutField.leadingAnchor.constraint(equalTo: mainView.leadingAnchor, constant: 20),
+                shortcutField.trailingAnchor.constraint(equalTo: mainView.trailingAnchor, constant: -20),
+                shortcutField.heightAnchor.constraint(equalToConstant: 30),
+                
+                // Button constraints
+                clearButton.topAnchor.constraint(equalTo: shortcutField.bottomAnchor, constant: 20),
+                clearButton.leadingAnchor.constraint(equalTo: mainView.leadingAnchor, constant: 20),
+                clearButton.widthAnchor.constraint(equalToConstant: 80),
+                clearButton.heightAnchor.constraint(equalToConstant: 30),
+                
+                cancelButton.topAnchor.constraint(equalTo: shortcutField.bottomAnchor, constant: 20),
+                cancelButton.centerXAnchor.constraint(equalTo: mainView.centerXAnchor),
+                cancelButton.widthAnchor.constraint(equalToConstant: 80),
+                cancelButton.heightAnchor.constraint(equalToConstant: 30),
+                
+                doneButton.topAnchor.constraint(equalTo: shortcutField.bottomAnchor, constant: 20),
+                doneButton.trailingAnchor.constraint(equalTo: mainView.trailingAnchor, constant: -20),
+                doneButton.widthAnchor.constraint(equalToConstant: 80),
+                doneButton.heightAnchor.constraint(equalToConstant: 30),
+                
+                // Bottom constraint to prevent window from being too small
+                mainView.bottomAnchor.constraint(greaterThanOrEqualTo: clearButton.bottomAnchor, constant: 20)
+            ])
+            
             // Create invisible key capture view that doesn't interfere with buttons
-            let keyCaptureView = KeyCaptureView(frame: NSRect(x: 0, y: 40, width: 350, height: 110)) // Only cover top area
+            let keyCaptureView = KeyCaptureView()
+            keyCaptureView.translatesAutoresizingMaskIntoConstraints = false
             keyCaptureView.onKeyCaptured = { [weak shortcutField] shortcut in
                 DispatchQueue.main.async {
                     shortcutField?.stringValue = shortcut
                 }
             }
             mainView.addSubview(keyCaptureView)
+            
+            // Key capture view constraints - cover the top area only
+            NSLayoutConstraint.activate([
+                keyCaptureView.topAnchor.constraint(equalTo: mainView.topAnchor),
+                keyCaptureView.leadingAnchor.constraint(equalTo: mainView.leadingAnchor),
+                keyCaptureView.trailingAnchor.constraint(equalTo: mainView.trailingAnchor),
+                keyCaptureView.bottomAnchor.constraint(equalTo: shortcutField.bottomAnchor, constant: 10)
+            ])
             
             // Show window and start capturing
             window.makeKeyAndOrderFront(nil)

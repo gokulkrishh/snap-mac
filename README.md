@@ -1,6 +1,6 @@
 # Snap - Window Manager
 
-A macOS menu bar app for organize your windows, boost your productivity.
+A macOS menu bar app for organize your windows, boost your productivity. A free and open source software.
 
 ## Features
 

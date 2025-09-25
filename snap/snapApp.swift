@@ -300,7 +300,7 @@ struct MenuBarContent: View {
                     let favorite = dict["favorite"] as? Bool ?? false
                     Menu(name) {
                         Button("Load Layout") {
-                            manager.loadLayout(name: name)
+                            Task { await manager.loadLayout(name: name) }
                         }
                         Button(favorite ? "Remove from Favourites" : "Add to Favourites") {
                             manager.toggleFavorite(name: name)

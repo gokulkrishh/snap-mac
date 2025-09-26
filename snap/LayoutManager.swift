@@ -160,6 +160,9 @@ class LayoutManager: ObservableObject {
         }
 
         // Use Accessibility API for window manipulation - more reliable than AppleScript
+        // First, collect all windows that need to be positioned
+        var windowsToPosition: [(windowElement: AXUIElement, app: NSRunningApplication, saved: [String: Any], targetWindowTitle: String)] = []
+        
         for (index, saved) in filteredLayouts.enumerated() {
             guard let savedOwner = saved["owner"] as? String,
                   let savedName = saved["name"] as? String,
@@ -179,9 +182,7 @@ class LayoutManager: ObservableObject {
             if app == nil, let bundleId = saved["bundleId"] as? String, !bundleId.isEmpty,
                let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
                 try? await NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
-                // Wait a bit for the app to launch
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
-                // Refresh running apps
+                // Refresh running apps immediately
                 let updatedApps = NSWorkspace.shared.runningApplications
                 app = updatedApps.first(where: { $0.localizedName == savedOwner })
             }
@@ -263,58 +264,59 @@ class LayoutManager: ObservableObject {
                 }
             }
             
-            // Apply the layout to the target window
+            // Collect window for positioning
             if let windowElement = targetWindowElement {
-                // Get current window position and size to check if it needs to be moved
-                var currentPosition: CFTypeRef?
-                var currentSize: CFTypeRef?
-                AXUIElementCopyAttributeValue(windowElement, kAXPositionAttribute as CFString, &currentPosition)
-                AXUIElementCopyAttributeValue(windowElement, kAXSizeAttribute as CFString, &currentSize)
-                
-                var currentPos = CGPoint.zero
-                var currentSz = CGSize.zero
-                
-                if let pos = currentPosition {
-                    AXValueGetValue(pos as! AXValue, .cgPoint, &currentPos)
-                }
-                if let sz = currentSize {
-                    AXValueGetValue(sz as! AXValue, .cgSize, &currentSz)
-                }
-                
-                let targetPosition = CGPoint(x: x, y: y)
-                let targetSize = CGSize(width: width, height: height)
-                
-                // Always restore windows to their exact saved positions when loading a layout
-                // This ensures that manually resized windows get restored to their saved layout
-                // No tolerance check - always apply the saved layout
-                
-                // Set position
-                var position = targetPosition
-                let posValue = AXValueCreate(.cgPoint, &position)
-                let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
-                if posResult != AXError.success {
-                    continue
-                }
-
-                // Set size
-                var size = targetSize
-                let sizeValue = AXValueCreate(.cgSize, &size)
-                let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
-                if sizeResult != AXError.success {
-                    continue
-                }
-                
-                // Bring window to front
-                AXUIElementSetAttributeValue(windowElement, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-                
+                windowsToPosition.append((windowElement: windowElement, app: app, saved: saved, targetWindowTitle: targetWindowTitle))
                 windowFound = true
             }
-            
-            // Add a small delay between window operations to ensure system stability
-            // This helps prevent race conditions when multiple windows are being repositioned
-            if index < filteredLayouts.count - 1 {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms delay
+        }
+        
+        // Now position all windows first
+        for (windowElement, app, saved, targetWindowTitle) in windowsToPosition {
+            guard let bounds = saved["bounds"] as? [String: Any],
+                  let x = bounds["X"] as? Double,
+                  let y = bounds["Y"] as? Double,
+                  let width = bounds["Width"] as? Double,
+                  let height = bounds["Height"] as? Double else {
+                continue
             }
+            
+            let targetPosition = CGPoint(x: x, y: y)
+            let targetSize = CGSize(width: width, height: height)
+            
+            // Set position
+            var position = targetPosition
+            let posValue = AXValueCreate(.cgPoint, &position)
+            let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
+            if posResult != AXError.success {
+                continue
+            }
+
+            // Set size
+            var size = targetSize
+            let sizeValue = AXValueCreate(.cgSize, &size)
+            let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
+            if sizeResult != AXError.success {
+                continue
+            }
+            
+            print("📐 Positioned window '\(targetWindowTitle)' at (\(x), \(y)) with size \(width)x\(height)")
+        }
+        
+        // Now bring windows to front in reverse order (last window becomes frontmost)
+        for (windowElement, app, saved, targetWindowTitle) in windowsToPosition.reversed() {
+            guard let savedOwner = saved["owner"] as? String else { continue }
+            
+            // Method 1: Activate the application first
+            app.activate(options: [.activateIgnoringOtherApps])
+            
+            // Method 2: Use Accessibility API to bring window to front
+            AXUIElementSetAttributeValue(windowElement, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+            
+            // Method 3: Set as main window
+            AXUIElementSetAttributeValue(windowElement, kAXMainAttribute as CFString, kCFBooleanTrue)
+            
+            print("🎯 Brought window '\(targetWindowTitle)' to front for app '\(savedOwner)'")
         }
     }
 

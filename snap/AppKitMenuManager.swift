@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 import Combine
 import ServiceManagement
+import Carbon
+import CoreGraphics
 
 class CustomMenu: NSMenu {
     override func performActionForItem(at index: Int) {
@@ -20,7 +22,7 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
     private var menu: NSMenu?
     private let layoutManager = LayoutManager.shared
     
-    // Global hotkey monitoring
+    // Global hotkey monitoring - using NSEvent with proper priority
     private var registeredShortcuts: [String: (layoutName: String, eventMonitor: Any)] = [:]
     
     override init() {
@@ -770,18 +772,22 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             NSEvent.removeMonitor(eventMonitor)
         }
         registeredShortcuts.removeAll()
+        print("🔄 Cleared all registered shortcuts")
     }
     
     private func registerGlobalShortcut(_ shortcutString: String, for layoutName: String) {
         guard let (keyCode, modifiers) = parseShortcutString(shortcutString) else {
+            print("❌ Failed to parse shortcut '\(shortcutString)'")
             return
         }
         
         // Check for duplicate shortcuts
         if registeredShortcuts[shortcutString] != nil {
+            print("⚠️ Shortcut '\(shortcutString)' already registered")
             return
         }
         
+        // Use NSEvent with aggressive monitoring
         let eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // Check if the key matches
             let keyMatches = event.keyCode == keyCode
@@ -798,6 +804,9 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             let modifiersMatch = actualRelevantModifiers == expectedRelevantModifiers
             
             if keyMatches && modifiersMatch {
+                print("🎯 Intercepted shortcut '\(shortcutString)' - loading layout '\(layoutName)'")
+                
+                // Execute immediately on main thread
                 DispatchQueue.main.async {
                     Task { await self?.layoutManager.loadLayout(name: layoutName) }
                 }
@@ -806,7 +815,11 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         
         if let monitor = eventMonitor {
             registeredShortcuts[shortcutString] = (layoutName: layoutName, eventMonitor: monitor)
+            print("✅ Successfully registered shortcut '\(shortcutString)' for layout '\(layoutName)'")
+            print("📋 KeyCode: \(keyCode), Modifiers: \(modifiers)")
+            print("🎯 Monitoring global events - will intercept when pressed")
         } else {
+            print("❌ Failed to register shortcut '\(shortcutString)'")
         }
     }
     
@@ -914,6 +927,7 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         default: return nil
         }
     }
+    
 }
 
 // MARK: - Key Capture View

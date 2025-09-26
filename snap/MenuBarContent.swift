@@ -142,7 +142,7 @@ struct MenuBarContent: View {
                         StyledMenuLabel(name: name, shortcut: shortcut)
                     }
                 }
-            }
+            }   
         }
 
         Divider()

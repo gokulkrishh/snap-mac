@@ -254,35 +254,24 @@ class LayoutManager: ObservableObject {
                 let targetPosition = CGPoint(x: x, y: y)
                 let targetSize = CGSize(width: width, height: height)
                 
-                // Always move the window to ensure it's in the correct position
-                // This fixes the issue where switching between layouts with the same app doesn't work
-                // Use a small tolerance to avoid unnecessary moves for tiny differences
-                let positionTolerance: CGFloat = 2.0
-                let sizeTolerance: CGFloat = 2.0
+                // Always restore windows to their exact saved positions when loading a layout
+                // This ensures that manually resized windows get restored to their saved layout
+                // No tolerance check - always apply the saved layout
                 
-                let positionMatches = abs(currentPos.x - targetPosition.x) < positionTolerance && 
-                                    abs(currentPos.y - targetPosition.y) < positionTolerance
-                let sizeMatches = abs(currentSz.width - targetSize.width) < sizeTolerance && 
-                                abs(currentSz.height - targetSize.height) < sizeTolerance
-                
-                // Always apply the layout, even if position/size are close
-                // This ensures consistent behavior when switching between layouts
-                if !positionMatches || !sizeMatches {
-                    // Set position
-                    var position = targetPosition
-                    let posValue = AXValueCreate(.cgPoint, &position)
-                    let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
-                    if posResult != AXError.success {
-                        continue
-                    }
+                // Set position
+                var position = targetPosition
+                let posValue = AXValueCreate(.cgPoint, &position)
+                let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
+                if posResult != AXError.success {
+                    continue
+                }
 
-                    // Set size
-                    var size = targetSize
-                    let sizeValue = AXValueCreate(.cgSize, &size)
-                    let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
-                    if sizeResult != AXError.success {
-                        continue
-                    }
+                // Set size
+                var size = targetSize
+                let sizeValue = AXValueCreate(.cgSize, &size)
+                let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
+                if sizeResult != AXError.success {
+                    continue
                 }
                 
                 windowFound = true

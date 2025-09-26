@@ -10,7 +10,7 @@ A macOS menu bar app for organize your windows, boost your productivity. A free 
 
 ## Installation
 
-1. Download [Snap-WindowManager.dmg](./Snap-WindowManager.dmg)
+1. Download lastest [Snap.dmg](https://github.com/gokulkrishh/snap-mac/releases)
 2. Double-click to mount and drag Snap to Applications
 3. Launch Snap from Applications or Spotlight
 

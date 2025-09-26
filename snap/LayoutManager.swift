@@ -203,10 +203,11 @@ class LayoutManager: ObservableObject {
             let windows = value as! CFArray
             var windowFound = false
 
-            // Find the window with matching name first
+            // Smart window selection: prioritize exact match, then best candidate
             var targetWindowElement: AXUIElement?
             var targetWindowTitle = ""
             
+            // First pass: Look for exact title match
             for i in 0..<CFArrayGetCount(windows) {
                 let window = CFArrayGetValueAtIndex(windows, i)
                 let windowElement = unsafeBitCast(window, to: AXUIElement.self)
@@ -222,15 +223,44 @@ class LayoutManager: ObservableObject {
                 }
             }
             
-            // If no exact match found, use the first available window from this app
-            // This is more aggressive and ensures the app gets repositioned even if window titles changed
+            // Second pass: If no exact match, find the best candidate
             if targetWindowElement == nil && CFArrayGetCount(windows) > 0 {
-                let window = CFArrayGetValueAtIndex(windows, 0)
-                targetWindowElement = unsafeBitCast(window, to: AXUIElement.self)
+                // For browsers and apps with dynamic titles, prefer non-empty titles
+                // For apps with static titles, prefer the main window
+                var bestWindow: AXUIElement?
+                var bestTitle = ""
+                var bestScore = -1
                 
-                var title: CFTypeRef?
-                AXUIElementCopyAttributeValue(targetWindowElement!, kAXTitleAttribute as CFString, &title)
-                targetWindowTitle = title as? String ?? ""
+                for i in 0..<CFArrayGetCount(windows) {
+                    let window = CFArrayGetValueAtIndex(windows, i)
+                    let windowElement = unsafeBitCast(window, to: AXUIElement.self)
+
+                    var title: CFTypeRef?
+                    AXUIElementCopyAttributeValue(windowElement, kAXTitleAttribute as CFString, &title)
+                    let windowTitle = title as? String ?? ""
+                    
+                    // Score windows: non-empty titles get higher priority
+                    let score = windowTitle.isEmpty ? 0 : windowTitle.count
+                    
+                    if score > bestScore {
+                        bestScore = score
+                        bestWindow = windowElement
+                        bestTitle = windowTitle
+                    }
+                }
+                
+                if let bestWindow = bestWindow {
+                    targetWindowElement = bestWindow
+                    targetWindowTitle = bestTitle
+                } else {
+                    // Fallback to first window
+                    let window = CFArrayGetValueAtIndex(windows, 0)
+                    targetWindowElement = unsafeBitCast(window, to: AXUIElement.self)
+                    
+                    var title: CFTypeRef?
+                    AXUIElementCopyAttributeValue(targetWindowElement!, kAXTitleAttribute as CFString, &title)
+                    targetWindowTitle = title as? String ?? ""
+                }
             }
             
             // Apply the layout to the target window
@@ -273,6 +303,9 @@ class LayoutManager: ObservableObject {
                 if sizeResult != AXError.success {
                     continue
                 }
+                
+                // Bring window to front
+                AXUIElementSetAttributeValue(windowElement, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
                 
                 windowFound = true
             }

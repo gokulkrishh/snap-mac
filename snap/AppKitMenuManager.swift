@@ -546,7 +546,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         
         // Update login item
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
-            print("Failed to get bundle identifier")
             // Revert the UserDefaults change since we failed
             UserDefaults.standard.set(currentValue, forKey: "launchAtLogin")
             showLaunchAtLoginError()
@@ -557,13 +556,10 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         do {
             if newValue {
                 try service.register()
-                print("✅ Successfully registered launch at login")
             } else {
                 try service.unregister()
-                print("✅ Successfully unregistered launch at login")
             }
         } catch {
-            print("❌ Failed to update login item: \(error)")
             // Revert the UserDefaults change since we failed
             UserDefaults.standard.set(currentValue, forKey: "launchAtLogin")
             showLaunchAtLoginError()
@@ -637,7 +633,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
     private func updateGlobalShortcuts() {
         // Check accessibility permissions first
         guard checkAccessibilityPermissions() else {
-            print("⚠️ Global shortcuts require accessibility permissions")
             return
         }
         
@@ -658,7 +653,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             }
         }
         
-        print("✅ Registered \(registeredShortcuts.count) global shortcuts")
     }
     
     private func checkAccessibilityPermissions() -> Bool {
@@ -780,13 +774,11 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
     
     private func registerGlobalShortcut(_ shortcutString: String, for layoutName: String) {
         guard let (keyCode, modifiers) = parseShortcutString(shortcutString) else {
-            print("❌ Failed to parse shortcut: \(shortcutString)")
             return
         }
         
         // Check for duplicate shortcuts
         if registeredShortcuts[shortcutString] != nil {
-            print("⚠️ Duplicate shortcut detected: \(shortcutString)")
             return
         }
         
@@ -806,7 +798,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
             let modifiersMatch = actualRelevantModifiers == expectedRelevantModifiers
             
             if keyMatches && modifiersMatch {
-                print("🎯 Global shortcut triggered: \(shortcutString) -> \(layoutName)")
                 DispatchQueue.main.async {
                     Task { await self?.layoutManager.loadLayout(name: layoutName) }
                 }
@@ -815,9 +806,7 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         
         if let monitor = eventMonitor {
             registeredShortcuts[shortcutString] = (layoutName: layoutName, eventMonitor: monitor)
-            print("✅ Registered shortcut: \(shortcutString) -> \(layoutName)")
         } else {
-            print("❌ Failed to register shortcut: \(shortcutString)")
         }
     }
     
@@ -827,7 +816,6 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         
         // Validate input
         guard !keyString.isEmpty else {
-            print("❌ Empty shortcut string")
             return nil
         }
         
@@ -854,13 +842,11 @@ class AppKitMenuManager: NSObject, ObservableObject, NSMenuDelegate {
         
         // Require at least one modifier for global shortcuts
         guard modifiers != 0 else {
-            print("❌ Global shortcuts require at least one modifier key")
             return nil
         }
         
         // Parse key code
         guard let keyCode = stringToKeyCode(keyString) else {
-            print("❌ Unknown key: \(keyString)")
             return nil
         }
         

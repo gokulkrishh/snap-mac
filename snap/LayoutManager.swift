@@ -160,7 +160,7 @@ class LayoutManager: ObservableObject {
         }
 
         // Use Accessibility API for window manipulation - more reliable than AppleScript
-        for saved in filteredLayouts {
+        for (index, saved) in filteredLayouts.enumerated() {
             guard let savedOwner = saved["owner"] as? String,
                   let savedName = saved["name"] as? String,
                   let bounds = saved["bounds"] as? [String: Any],
@@ -203,7 +203,10 @@ class LayoutManager: ObservableObject {
             let windows = value as! CFArray
             var windowFound = false
 
-            // Find the window with matching name
+            // Find the window with matching name first
+            var targetWindowElement: AXUIElement?
+            var targetWindowTitle = ""
+            
             for i in 0..<CFArrayGetCount(windows) {
                 let window = CFArrayGetValueAtIndex(windows, i)
                 let windowElement = unsafeBitCast(window, to: AXUIElement.self)
@@ -213,76 +216,82 @@ class LayoutManager: ObservableObject {
                 let windowTitle = title as? String ?? ""
 
                 if windowTitle == savedName || (savedName.isEmpty && windowTitle.isEmpty) {
-                    // Get current window position and size to check if it needs to be moved
-                    var currentPosition: CFTypeRef?
-                    var currentSize: CFTypeRef?
-                    AXUIElementCopyAttributeValue(windowElement, kAXPositionAttribute as CFString, &currentPosition)
-                    AXUIElementCopyAttributeValue(windowElement, kAXSizeAttribute as CFString, &currentSize)
-                    
-                    var currentPos = CGPoint.zero
-                    var currentSz = CGSize.zero
-                    
-                    if let pos = currentPosition {
-                        AXValueGetValue(pos as! AXValue, .cgPoint, &currentPos)
-                    }
-                    if let sz = currentSize {
-                        AXValueGetValue(sz as! AXValue, .cgSize, &currentSz)
-                    }
-                    
-                    let targetPosition = CGPoint(x: x, y: y)
-                    let targetSize = CGSize(width: width, height: height)
-                    
-                    // Only move the window if it's not already in the correct position
-                    let positionTolerance: CGFloat = 5.0
-                    let sizeTolerance: CGFloat = 5.0
-                    
-                    let positionMatches = abs(currentPos.x - targetPosition.x) < positionTolerance && 
-                                        abs(currentPos.y - targetPosition.y) < positionTolerance
-                    let sizeMatches = abs(currentSz.width - targetSize.width) < sizeTolerance && 
-                                    abs(currentSz.height - targetSize.height) < sizeTolerance
-                    
-                    if !positionMatches || !sizeMatches {
-                        // Set position
-                        var position = targetPosition
-                        let posValue = AXValueCreate(.cgPoint, &position)
-                        let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
-                        if posResult != AXError.success {
-                            continue
-                        }
-
-                        // Set size
-                        var size = targetSize
-                        let sizeValue = AXValueCreate(.cgSize, &size)
-                        let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
-                        if sizeResult != AXError.success {
-                            continue
-                        }
-                    }
-                    
-                    windowFound = true
+                    targetWindowElement = windowElement
+                    targetWindowTitle = windowTitle
                     break
                 }
             }
             
-            // If no window was found with the exact name, try to find any window from this app
-            // This helps when window titles change or when there's only one window
-            if !windowFound && CFArrayGetCount(windows) > 0 {
+            // If no exact match found, use the first available window from this app
+            // This is more aggressive and ensures the app gets repositioned even if window titles changed
+            if targetWindowElement == nil && CFArrayGetCount(windows) > 0 {
                 let window = CFArrayGetValueAtIndex(windows, 0)
-                let windowElement = unsafeBitCast(window, to: AXUIElement.self)
+                targetWindowElement = unsafeBitCast(window, to: AXUIElement.self)
                 
-                // Set position
-                var position = CGPoint(x: x, y: y)
-                let posValue = AXValueCreate(.cgPoint, &position)
-                let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
-                if posResult == AXError.success {
+                var title: CFTypeRef?
+                AXUIElementCopyAttributeValue(targetWindowElement!, kAXTitleAttribute as CFString, &title)
+                targetWindowTitle = title as? String ?? ""
+            }
+            
+            // Apply the layout to the target window
+            if let windowElement = targetWindowElement {
+                // Get current window position and size to check if it needs to be moved
+                var currentPosition: CFTypeRef?
+                var currentSize: CFTypeRef?
+                AXUIElementCopyAttributeValue(windowElement, kAXPositionAttribute as CFString, &currentPosition)
+                AXUIElementCopyAttributeValue(windowElement, kAXSizeAttribute as CFString, &currentSize)
+                
+                var currentPos = CGPoint.zero
+                var currentSz = CGSize.zero
+                
+                if let pos = currentPosition {
+                    AXValueGetValue(pos as! AXValue, .cgPoint, &currentPos)
+                }
+                if let sz = currentSize {
+                    AXValueGetValue(sz as! AXValue, .cgSize, &currentSz)
+                }
+                
+                let targetPosition = CGPoint(x: x, y: y)
+                let targetSize = CGSize(width: width, height: height)
+                
+                // Always move the window to ensure it's in the correct position
+                // This fixes the issue where switching between layouts with the same app doesn't work
+                // Use a small tolerance to avoid unnecessary moves for tiny differences
+                let positionTolerance: CGFloat = 2.0
+                let sizeTolerance: CGFloat = 2.0
+                
+                let positionMatches = abs(currentPos.x - targetPosition.x) < positionTolerance && 
+                                    abs(currentPos.y - targetPosition.y) < positionTolerance
+                let sizeMatches = abs(currentSz.width - targetSize.width) < sizeTolerance && 
+                                abs(currentSz.height - targetSize.height) < sizeTolerance
+                
+                // Always apply the layout, even if position/size are close
+                // This ensures consistent behavior when switching between layouts
+                if !positionMatches || !sizeMatches {
+                    // Set position
+                    var position = targetPosition
+                    let posValue = AXValueCreate(.cgPoint, &position)
+                    let posResult = AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posValue!)
+                    if posResult != AXError.success {
+                        continue
+                    }
+
                     // Set size
-                    var size = CGSize(width: width, height: height)
+                    var size = targetSize
                     let sizeValue = AXValueCreate(.cgSize, &size)
                     let sizeResult = AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeValue!)
-                    if sizeResult == AXError.success {
-                        windowFound = true
+                    if sizeResult != AXError.success {
+                        continue
                     }
                 }
+                
+                windowFound = true
+            }
+            
+            // Add a small delay between window operations to ensure system stability
+            // This helps prevent race conditions when multiple windows are being repositioned
+            if index < filteredLayouts.count - 1 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms delay
             }
         }
     }
